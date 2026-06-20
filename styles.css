@@ -92,12 +92,12 @@ select, input[type="text"], input[type="number"] {
 }
 .fmea-table thead .grp { background: var(--head-2); }
 
-/* Độ rộng cột (A..S) */
-.c-a { width: 230px; } .c-b { width: 150px; } .c-c { width: 250px; } .c-d { width: 42px; }
-.c-e { width: 52px; }  .c-f { width: 220px; } .c-g { width: 90px; }  .c-h { width: 44px; }
-.c-i { width: 170px; } .c-j { width: 250px; } .c-k { width: 44px; }  .c-l { width: 48px; }
-.c-m { width: 150px; } .c-n { width: 130px; } .c-o { width: 150px; }
-.c-p { width: 40px; }  .c-q { width: 40px; }  .c-r { width: 40px; }  .c-s { width: 44px; }
+/* Độ rộng cột (A..S) — thu hẹp cột chữ để A→"Biện pháp đề xuất" (M) vừa màn hình */
+.c-a { width: 185px; } .c-b { width: 120px; } .c-c { width: 190px; } .c-d { width: 40px; }
+.c-e { width: 48px; }  .c-f { width: 175px; } .c-g { width: 80px; }  .c-h { width: 42px; }
+.c-i { width: 135px; } .c-j { width: 185px; } .c-k { width: 42px; }  .c-l { width: 46px; }
+.c-m { width: 135px; } .c-n { width: 110px; } .c-o { width: 110px; }
+.c-p { width: 38px; }  .c-q { width: 38px; }  .c-r { width: 38px; }  .c-s { width: 44px; }
 
 /* Ô có thể sửa */
 .cell-edit {
@@ -188,9 +188,12 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
   border: 1px solid var(--line-strong); border-radius: 4px;
 }
 
-/* thanh thông tin dự án */
-.meta-bar { background: var(--head-2); }
-.inp-md { width: 150px; }
+/* thanh thông tin dự án — gộp meta + công cụ dự án trên 1 hàng */
+.meta-bar { background: var(--head-2); flex-wrap: nowrap; overflow-x: auto; gap: 14px; padding-top: 8px; padding-bottom: 8px; }
+.meta-bar .tool-group { gap: 7px; flex: 0 0 auto; }
+.meta-bar label { white-space: nowrap; }
+.inp-md { width: 130px; }
+#projSelect { max-width: 220px; }
 .btn-light { background: #fff; color: var(--ink); border-color: #bdbdbd; }
 .btn-light:hover { background: var(--head); }
 

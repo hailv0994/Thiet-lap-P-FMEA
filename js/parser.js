@@ -15,6 +15,22 @@
   // Lấy dòng đầu tiên (thường là tiếng Việt) của một ô nhiều dòng VN/EN
   const firstLine = (s) => (s == null ? '' : String(s)).split('\n')[0].trim();
 
+  // Ký tự có dấu tiếng Việt — dùng để nhận biết dòng tiếng Việt nối tiếp
+  const VN_DIACRITIC = /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i;
+  // Tên/nội dung tiếng Việt có thể bị xuống dòng GIỮA CHỪNG trong ô CP
+  // (vd "KIỂM TRA PHÔI\nĐẦU VÀO\n入荷検査"). Lấy dòng đầu rồi GHÉP tiếp các dòng
+  // tiếng Việt (có dấu) liền sau; dừng khi gặp dòng tiếng Anh/Nhật (không dấu VN).
+  const vnText = (s) => {
+    if (s == null) return '';
+    const parts = String(s).split('\n').map((x) => x.trim()).filter(Boolean);
+    if (!parts.length) return '';
+    const out = [parts[0]];
+    for (let i = 1; i < parts.length; i++) {
+      if (VN_DIACRITIC.test(parts[i])) out.push(parts[i]); else break;
+    }
+    return out.join(' ').trim();
+  };
+
   function decodeAddr(addr) {
     const m = /^([A-Z]+)(\d+)$/.exec(addr);
     if (!m) return null;
@@ -70,7 +86,7 @@
       for (let c = startC; c <= startC + 14; c++) {
         const v = cellRC(ws, lab.row, c, merges);
         if (typeof v === 'string' && norm(v) && !/Tên công đoạn|Process name/.test(v)) {
-          return firstLine(v);
+          return vnText(v);
         }
       }
     }
@@ -150,7 +166,7 @@
       const r0 = starts[i];
       const r1 = (i + 1 < starts.length ? starts[i + 1] : maxRow + 1) - 1; // hàng cuối của hạng mục
 
-      const name = firstLine(cellRC(ws, r0, nameCol, merges));
+      const name = vnText(cellRC(ws, r0, nameCol, merges));
       if (!name) continue;
 
       // spec: ô đầu tiên có giá trị trong specCol
@@ -176,7 +192,7 @@
       tols = [...new Set(tols)];
       const tol = tols.join('/');
 
-      const method = methodCol >= 0 ? firstLine(cellRC(ws, r0, methodCol, merges)) : '';
+      const method = methodCol >= 0 ? vnText(cellRC(ws, r0, methodCol, merges)) : '';
       const freq = freqCol >= 0 ? String(cellRC(ws, r0, freqCol, merges) || '').replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim() : '';
       const sc = scCol >= 0 ? norm(cellRC(ws, r0, scCol, merges)) : '';
 
