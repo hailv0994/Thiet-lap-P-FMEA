@@ -39,9 +39,9 @@
   // Cột số canh giữa: 4(S) và 16(S sau) rộng hơn để tiêu đề "nghiêm trọng" không vỡ chữ
   const FIXED_W = { 4: 7, 5: 6, 8: 5, 11: 5, 12: 6, 16: 7, 17: 5, 18: 5, 19: 5 };
   // 13 (Biện pháp đề xuất) gấp ~2 lần; 3/6/9 (Ảnh hưởng/Nguyên nhân/Dự phòng) giảm ~30%
-  const MIN_W = { 1: 16, 2: 12, 3: 11, 6: 10, 7: 7, 9: 8, 10: 16, 13: 20, 14: 10, 15: 10 };
+  const MIN_W = { 1: 16, 2: 12, 3: 11, 6: 10, 7: 7, 9: 8, 10: 16, 13: 30, 14: 10, 15: 10 };
   const MAX_W = { 1: 32, 2: 24, 3: 21, 6: 21, 7: 14, 9: 17, 10: 32, 13: 44, 14: 22, 15: 22 };
-  const ORIG_TOTAL = 222.9; // tổng độ rộng cột gốc (để giữ vừa khổ A4 scale 63%)
+  const ORIG_TOTAL = 190; // tổng độ rộng cột để VỪA khổ A4 ở scale 70% (chừa biên an toàn, không cắt cột)
 
   // ---- Tính dữ liệu cần ghi từ state ----
   function computeData(state, startRow) {
@@ -161,7 +161,7 @@
   }
 
   // ---- Ngắt trang + tách ô gộp tại ranh giới trang, lặp nội dung ----
-  const PAGE_CAP = 670; // chiều cao nội dung (pt) cho vùng dữ liệu mỗi trang A4
+  const PAGE_CAP = 584; // chiều cao nội dung (pt) mỗi trang A4 ở scale 70% (ít dòng hơn so với 63%)
   function paginate(H, startRow, lastRow) {
     const segments = []; const breaks = [];
     let pageStart = startRow, cum = 0;
