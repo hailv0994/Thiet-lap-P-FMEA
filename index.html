@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>P-FMEA Builder — Thiết lập P-FMEA từ Control Plan</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-left">
+      <h1>P-FMEA Builder</h1>
+      <span class="subtitle">Thiết lập P-FMEA tự động từ Control Plan (CP)</span>
+    </div>
+    <div class="topbar-right">
+      <button id="btnExport" class="btn btn-primary" disabled>⬇ Xuất Excel (.xlsx)</button>
+    </div>
+  </header>
+
+  <section class="toolbar">
+    <div class="tool-group">
+      <label class="file-btn">
+        <input type="file" id="fileCP" accept=".xlsx,.xls" hidden />
+        <span class="btn">📂 Tải Control Plan</span>
+      </label>
+      <span id="fileName" class="muted">Chưa chọn file</span>
+    </div>
+
+    <div class="tool-group" id="sheetGroup" hidden>
+      <label>Sheet công đoạn:
+        <select id="sheetSelect"></select>
+      </label>
+      <label>STT công đoạn:
+        <input type="text" id="procNo" class="inp-sm" placeholder="VD: 2" />
+      </label>
+      <button id="btnLoad" class="btn">＋ Nạp vào P-FMEA</button>
+    </div>
+
+    <div class="tool-group right">
+      <button id="btnAddProc" class="btn ghost" hidden>＋ Công đoạn trống</button>
+      <button id="btnClear" class="btn ghost" hidden>🗑 Xóa hết</button>
+    </div>
+  </section>
+
+  <div id="hint" class="hint">
+    <strong>Cách dùng:</strong>
+    1) Tải file Control Plan → 2) Chọn sheet công đoạn rồi bấm <em>Nạp vào P-FMEA</em> →
+    3) Bảng P-FMEA bên dưới tự điền các cột rút từ CP. Bổ sung phần tự phân tích
+    (ảnh hưởng ý①, nguyên nhân, dự phòng, phát hiện nguyên nhân) và chọn
+    <em>ảnh hưởng ý②</em> để tự chấm điểm S → 4) Bấm <em>Xuất Excel</em>.
+  </div>
+
+  <main class="sheet-wrap">
+    <div class="page-title">　＜GL SQS0811 Quy định vận dụng D/P FMEA　Phụ lục - 4　GL SQS0811 D/P FMEA運用規定　付表-4 ＞</div>
+    <table id="fmea" class="fmea-table">
+      <colgroup>
+        <col class="c-a" /><col class="c-b" /><col class="c-c" /><col class="c-d" />
+        <col class="c-e" /><col class="c-f" /><col class="c-g" /><col class="c-h" />
+        <col class="c-i" /><col class="c-j" /><col class="c-k" /><col class="c-l" />
+        <col class="c-m" /><col class="c-n" /><col class="c-o" /><col class="c-p" />
+        <col class="c-q" /><col class="c-r" /><col class="c-s" />
+      </colgroup>
+      <thead></thead>
+      <tbody></tbody>
+    </table>
+    <div id="emptyState" class="empty-state">Chưa có dữ liệu. Hãy tải Control Plan và nạp một công đoạn.</div>
+  </main>
+
+  <script src="vendor/xlsx.full.min.js"></script>
+  <script src="data/severity.js"></script>
+  <script src="js/parser.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
