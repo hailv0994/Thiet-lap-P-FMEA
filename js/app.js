@@ -407,13 +407,8 @@
     reader.readAsArrayBuffer(file);
   }
 
-  // Nạp TẤT CẢ công đoạn: duyệt mọi sheet, sheet nào có hạng mục chất lượng thì
-  // thành 1 công đoạn. Bỏ qua sheet bìa/master (không có hạng mục).
-  function onLoadProc() {
-    if (!workbook) return;
-    if (state.processes.length &&
-        !confirm('Nạp tất cả công đoạn trong file? Thao tác này thay thế toàn bộ công đoạn hiện có.')) return;
-
+  // Đọc TẤT CẢ sheet -> danh sách công đoạn mới (fresh từ CP)
+  function parseAllProcs() {
     const sheets = window.CPParser.listSheets(workbook);
     const procs = [];
     const skipped = [];
@@ -430,9 +425,78 @@
         reqs: res.items.map(reqFromItem),
       });
     });
+    return { procs, skipped };
+  }
 
+  // Khóa so khớp tên (công đoạn / hạng mục) — bỏ dấu cách thừa, không phân biệt hoa thường
+  const normKey = (s) => (s == null ? '' : String(s)).replace(/\s+/g, ' ').trim().toLowerCase();
+  // Tên hạng mục lấy từ phần trước dấu ":" của yêu cầu (ổn định dù kích thước đổi)
+  function reqNameKey(r) {
+    let n = (r.reqText || '').split(':')[0].trim();
+    if (!n) n = (r.failureMode || '').replace(/\s*không đạt\s*$/i, '').trim();
+    return normKey(n);
+  }
+
+  // Ghép CP mới theo Model base: cấu trúc lấy theo CP mới; hạng mục trùng tên thì
+  // GIỮ phân tích của base, chỉ cập nhật kích thước (reqText) theo CP mới; hạng mục
+  // mới thì giữ nguyên bản tự sinh từ CP; hạng mục base không có trong CP thì bỏ.
+  function mergeWithBase(baseProcs, newProcs) {
+    const baseByName = {};
+    baseProcs.forEach((p) => { baseByName[normKey(p.name)] = p; });
+    return newProcs.map((np, i) => {
+      const bp = baseByName[normKey(np.name)];
+      let reqs;
+      if (bp) {
+        const baseByItem = {};
+        bp.reqs.forEach((r) => { baseByItem[reqNameKey(r)] = r; });
+        reqs = np.reqs.map((nr) => {
+          const br = baseByItem[reqNameKey(nr)];
+          if (!br) return nr; // hạng mục mới -> giữ bản tự sinh từ CP
+          // trùng tên -> giữ phân tích base, chỉ cập nhật kích thước theo CP mới
+          return {
+            id: uid('r'),
+            reqText: nr.reqText,
+            failureMode: br.failureMode,
+            effectAnalysis: br.effectAnalysis,
+            effectStdText: br.effectStdText,
+            effectScope: br.effectScope,
+            severity: br.severity,
+            classification: br.classification,
+            detectFailureAuto: br.detectFailureAuto,
+            causes: (br.causes && br.causes.length ? br.causes : [newCause()])
+              .map((c) => Object.assign({}, c, { id: uid('c') })),
+          };
+        });
+      } else {
+        reqs = np.reqs; // công đoạn mới hoàn toàn
+      }
+      return { id: uid('p'), no: String(i + 1), name: np.name, func: bp ? bp.func : np.func, reqs };
+    });
+  }
+
+  function onLoadProc() {
+    if (!workbook) return;
+    const { procs, skipped } = parseAllProcs();
     if (!procs.length) {
       alert('Không tìm thấy công đoạn nào có hạng mục chất lượng trong file.');
+      return;
+    }
+    // Đang mở sẵn dữ liệu (Model base) -> ghép theo base; nếu muốn nạp mới hoàn
+    // toàn thì bấm "Xóa hết" trước rồi nạp lại.
+    if (state.processes.length) {
+      const ok = confirm(
+        'Đang có dữ liệu (Model base) đang mở.\n\n' +
+        'OK = GHÉP CP mới theo Model base:\n' +
+        '  • Giữ nguyên phân tích của base, chỉ cập nhật kích thước theo CP mới.\n' +
+        '  • Thêm hạng mục mới mà base chưa có (tự sinh từ CP).\n' +
+        '  • Bỏ hạng mục base không có trong CP mới.\n\n' +
+        'Cancel = Hủy (muốn nạp mới hoàn toàn thì bấm "Xóa hết" trước).'
+      );
+      if (!ok) return;
+      state.processes = mergeWithBase(state.processes, procs);
+      render();
+      flash('Đã ghép CP theo Model base (' + state.processes.length + ' công đoạn). Hãy đổi Model sang model mới rồi bấm Lưu để tạo bản mới.');
+      document.querySelector('.sheet-wrap').scrollIntoView({ behavior: 'smooth' });
       return;
     }
     state.processes = procs;
