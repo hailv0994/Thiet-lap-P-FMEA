@@ -14,8 +14,7 @@
   };
   let workbook = null;               // workbook CP đang mở
   const LS_PROJECTS = 'pfmea_projects_v1';
-  const LS_AUTOSAVE = 'pfmea_autosave_v1'; // (cũ) — chỉ đọc để gỡ phiên cũ
-  const LS_LAST = 'pfmea_last_meta_v1';    // ghi nhớ lựa chọn meta gần nhất
+  const LS_AUTOSAVE = 'pfmea_autosave_v1'; // tự lưu phiên làm việc (meta + nội dung)
 
   const $ = (s) => document.querySelector(s);
   const esc = (s) => (s == null ? '' : String(s))
@@ -482,14 +481,8 @@
   function scheduleAutosave() {
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(() => {
-      try {
-        // Nhớ lựa chọn meta gần nhất (để mở lại đúng dự án khi tải trang)
-        localStorage.setItem(LS_LAST, JSON.stringify(state.meta));
-        // Tự lưu nội dung vào đúng dự án (theo Model) — không mất dữ liệu khi làm
-        const had = !!readProjects()[currentKey()];
-        persistCurrent();
-        if (!had && currentKey() && state.processes.length) refreshProjectUI();
-      } catch (e) { /* hết dung lượng */ }
+      // Tự lưu TOÀN BỘ phiên làm việc (meta + nội dung). KHÔNG bao giờ xóa.
+      try { localStorage.setItem(LS_AUTOSAVE, snapshot()); } catch (e) { /* hết dung lượng */ }
     }, 600);
   }
 
@@ -510,56 +503,6 @@
     let mx = 0;
     JSON.stringify(state.processes).replace(/[a-z](\d+)/g, (_, n) => { mx = Math.max(mx, +n); return _; });
     UID = mx + 1;
-  }
-
-  // Lưu nội dung hiện tại vào kho dự án theo currentKey (nếu hợp lệ & có dữ liệu)
-  function persistCurrent() {
-    const key = currentKey();
-    if (!key || !state.processes.length) return;
-    const map = readProjects();
-    map[key] = { meta: Object.assign({}, state.meta), processes: state.processes, savedAt: new Date().toISOString() };
-    writeProjects(map);
-  }
-
-  // Hiển thị nội dung ứng với meta hiện tại:
-  //  - Nếu có dự án đã lưu khớp khóa -> nạp nội dung đó.
-  //  - Nếu chưa có Model (khóa không hợp lệ) hoặc keepIfNew -> GIỮ nội dung hiện tại.
-  //  - Còn lại (đã chọn đủ nhưng chưa từng lưu) -> để TRỐNG.
-  function loadForMeta(opts) {
-    opts = opts || {};
-    const key = currentKey();
-    const map = readProjects();
-    if (key && map[key]) {
-      state.processes = map[key].processes || [];
-      reindexUID();
-      render();
-      refreshProjectUI();
-      $('#projSelect').value = key;
-      return;
-    }
-    if (!key || opts.keepIfNew) {
-      persistCurrent();
-      render();
-      return;
-    }
-    state.processes = [];
-    render();
-  }
-
-  // Dọn các dự án "lạc" Material: bộ phận có trong Material nhưng sản phẩm thì không
-  // (đây là dữ liệu gõ tay cũ, vd "Damper case comp" thường) -> xóa để không hiện lại.
-  function pruneLegacyProjects() {
-    const tree = TREE();
-    if (!Object.keys(tree).length) return;
-    const map = readProjects();
-    let changed = false;
-    Object.keys(map).forEach((k) => {
-      const m = (map[k] && map[k].meta) || {};
-      if (m.dept && tree[m.dept] && m.product && !tree[m.dept][m.product]) {
-        delete map[k]; changed = true;
-      }
-    });
-    if (changed) writeProjects(map);
   }
 
   function onSave() {
@@ -621,6 +564,14 @@
         const map = readProjects();
         Object.assign(map, data.projects || {});
         writeProjects(map);
+        // Khôi phục luôn NỘI DUNG đang làm dở (current) nếu có — để mang dữ liệu
+        // sang file mới mà không mất gì.
+        const cur = data.current;
+        if (cur && cur.processes && cur.processes.length &&
+            (!state.processes.length ||
+             confirm('Nạp luôn nội dung đang làm dở trong file sao lưu (thay nội dung hiện tại)?'))) {
+          applySnapshot(cur);
+        }
         refreshProjectUI();
         flash('Đã nạp file sao lưu (' + Object.keys(data.projects || {}).length + ' dự án).');
       } catch (err) { alert('File sao lưu không hợp lệ: ' + err.message); }
@@ -733,22 +684,19 @@
   function init() {
     buildHeader();
 
-    // Dọn dữ liệu gõ tay cũ lạc Material (vd "Damper case comp")
-    pruneLegacyProjects();
-    // Khôi phục LỰA CHỌN meta gần nhất — KHÔNG tự nạp nội dung, để tránh hiện
-    // nhầm dữ liệu cũ. Nội dung chỉ hiện khi khóa dự án (gồm Model) khớp bản đã lưu.
+    // Khôi phục TOÀN BỘ phiên làm việc gần nhất (meta + nội dung). KHÔNG xóa gì.
     try {
-      let m = null;
-      const last = localStorage.getItem(LS_LAST);
-      if (last) m = JSON.parse(last);
-      else { const auto = localStorage.getItem(LS_AUTOSAVE); if (auto) m = (JSON.parse(auto) || {}).meta; }
-      if (m) state.meta = Object.assign(state.meta, m);
+      const auto = localStorage.getItem(LS_AUTOSAVE);
+      if (auto) {
+        const obj = JSON.parse(auto) || {};
+        state.meta = Object.assign(state.meta, obj.meta || {});
+        state.processes = obj.processes || [];
+      }
     } catch (e) { /* bỏ qua */ }
-    localStorage.removeItem(LS_AUTOSAVE); // bỏ kiểu lưu chung của phiên cũ
+    reindexUID();
     writeMetaInputs();
-    readMetaInputs();        // đồng bộ lại: giá trị lạc Material trở thành rỗng
     refreshProjectUI();
-    loadForMeta({});         // nạp đúng dự án khớp meta (nếu có), ngược lại để trống
+    render();
     $('#btnAddProc').hidden = false; $('#btnClear').hidden = false;
 
     $('#fileCP').addEventListener('change', onFile);
@@ -761,36 +709,33 @@
     $('#btnDeleteProj').addEventListener('click', onDeleteProject);
     $('#btnExportJson').addEventListener('click', onExportJson);
     $('#fileJson').addEventListener('change', onImportJson);
-    $('#mDept').addEventListener('change', () => {
-      persistCurrent();                       // lưu nội dung đang làm theo khóa cũ
-      const dept = $('#mDept').value;
-      fillProduct(dept, '');                  // đổ lại sản phẩm theo bộ phận, reset
-      fillLine(dept, '', '');                 // reset dây chuyền
+    // Đổi meta = đổi NHÃN cho phiên hiện tại; KHÔNG xóa nội dung đang làm.
+    // Chỉ khi bảng đang TRỐNG và có dự án đã lưu khớp Model thì mới tự mở ra.
+    function onMetaChange() {
       readMetaInputs();
-      loadForMeta({});                        // hiện dự án khớp, hoặc để trống
-      localStorage.setItem(LS_LAST, JSON.stringify(state.meta));
+      if (!state.processes.length) {
+        const proj = readProjects()[currentKey()];
+        if (proj && proj.processes && proj.processes.length) {
+          state.processes = proj.processes; reindexUID(); render();
+          $('#projSelect').value = currentKey();
+        }
+      }
+      scheduleAutosave();
+    }
+    $('#mDept').addEventListener('change', () => {
+      const dept = $('#mDept').value;
+      fillProduct(dept, '');                  // đổ lại sản phẩm theo bộ phận
+      fillLine(dept, '', '');                 // reset dây chuyền
+      onMetaChange();
     });
     $('#mProduct').addEventListener('change', () => {
-      persistCurrent();
       fillLine($('#mDept').value, $('#mProduct').value, ''); // đổ lại dây chuyền
-      readMetaInputs();
-      loadForMeta({});
-      localStorage.setItem(LS_LAST, JSON.stringify(state.meta));
+      onMetaChange();
     });
-    $('#mLine').addEventListener('change', () => {
-      persistCurrent();
-      readMetaInputs();
-      loadForMeta({});
-      localStorage.setItem(LS_LAST, JSON.stringify(state.meta));
-    });
-    // Model: gõ tự do. Khi nhập xong (change) mới nạp/giữ nội dung theo Model.
-    $('#mModel').addEventListener('change', () => {
-      persistCurrent();                       // lưu nội dung theo Model cũ
-      readMetaInputs();                        // Model mới
-      loadForMeta({ keepIfNew: true });        // có dữ liệu cũ thì hiện; chưa có thì giữ nội dung đang làm
-      localStorage.setItem(LS_LAST, JSON.stringify(state.meta));
-    });
-    $('#mModel').addEventListener('input', () => { readMetaInputs(); });
+    $('#mLine').addEventListener('change', onMetaChange);
+    // Model: gõ tự do; khi nhập xong (change) thử tự mở dự án đã lưu nếu bảng trống.
+    $('#mModel').addEventListener('change', onMetaChange);
+    $('#mModel').addEventListener('input', () => { readMetaInputs(); scheduleAutosave(); });
 
     const tbody = $('#fmea tbody');
     tbody.addEventListener('input', onInput);
