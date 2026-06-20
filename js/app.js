@@ -684,19 +684,12 @@
   function init() {
     buildHeader();
 
-    // Khôi phục TOÀN BỘ phiên làm việc gần nhất (meta + nội dung). KHÔNG xóa gì.
-    try {
-      const auto = localStorage.getItem(LS_AUTOSAVE);
-      if (auto) {
-        const obj = JSON.parse(auto) || {};
-        state.meta = Object.assign(state.meta, obj.meta || {});
-        state.processes = obj.processes || [];
-      }
-    } catch (e) { /* bỏ qua */ }
-    reindexUID();
-    writeMetaInputs();
-    refreshProjectUI();
-    render();
+    // Mở trang mới = KHÔNG hiển thị dữ liệu gì. Dữ liệu chỉ xuất hiện khi người
+    // dùng CHỌN (dự án đã lưu / đủ Bộ phận-SP-Dây chuyền-Model khớp dự án) hoặc
+    // UPLOAD Control Plan. Không tự khôi phục phiên cũ.
+    writeMetaInputs();   // meta rỗng -> dropdown để trống
+    refreshProjectUI();  // chỉ nạp danh sách dự án đã lưu vào ô "Mở dự án"
+    render();            // bảng trống
     $('#btnAddProc').hidden = false; $('#btnClear').hidden = false;
 
     $('#fileCP').addEventListener('change', onFile);

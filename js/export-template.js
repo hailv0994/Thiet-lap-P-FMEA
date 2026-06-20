@@ -36,9 +36,11 @@
   // cột -> loại: T text, N số, S đặc tính đặc thù
   const COL_KIND = { 1: 'T', 2: 'T', 3: 'T', 4: 'N', 5: 'S', 6: 'T', 7: 'T', 8: 'N', 9: 'T', 10: 'T', 11: 'N', 12: 'N', 13: 'T', 14: 'T', 15: 'T', 16: 'N', 17: 'N', 18: 'N', 19: 'N' };
   const TEXT_COLS = [1, 2, 3, 6, 7, 9, 10, 13, 14, 15];
-  const FIXED_W = { 4: 5, 5: 6, 8: 5, 11: 5, 12: 6, 16: 5, 17: 5, 18: 5, 19: 5 };
-  const MIN_W = { 1: 16, 2: 12, 3: 16, 6: 14, 7: 7, 9: 12, 10: 16, 13: 10, 14: 10, 15: 10 };
-  const MAX_W = { 1: 32, 2: 24, 3: 30, 6: 30, 7: 14, 9: 24, 10: 32, 13: 22, 14: 22, 15: 22 };
+  // Cột số canh giữa: 4(S) và 16(S sau) rộng hơn để tiêu đề "nghiêm trọng" không vỡ chữ
+  const FIXED_W = { 4: 7, 5: 6, 8: 5, 11: 5, 12: 6, 16: 7, 17: 5, 18: 5, 19: 5 };
+  // 13 (Biện pháp đề xuất) gấp ~2 lần; 3/6/9 (Ảnh hưởng/Nguyên nhân/Dự phòng) giảm ~30%
+  const MIN_W = { 1: 16, 2: 12, 3: 11, 6: 10, 7: 7, 9: 8, 10: 16, 13: 20, 14: 10, 15: 10 };
+  const MAX_W = { 1: 32, 2: 24, 3: 21, 6: 21, 7: 14, 9: 17, 10: 32, 13: 44, 14: 22, 15: 22 };
   const ORIG_TOTAL = 222.9; // tổng độ rộng cột gốc (để giữ vừa khổ A4 scale 63%)
 
   // ---- Tính dữ liệu cần ghi từ state ----
@@ -235,11 +237,49 @@
     return s + '</cols>';
   }
 
+  // Xóa sheet "VÍ DỤ" (sheet2) + mọi tham chiếu -> file xuất chỉ còn sheet FORMAT
+  function stripExampleSheet(files, dec, enc) {
+    delete files['xl/worksheets/sheet2.xml'];
+    delete files['xl/worksheets/_rels/sheet2.xml.rels'];
+    delete files['xl/drawings/drawing2.xml'];
+    delete files['xl/printerSettings/printerSettings2.bin'];
+    delete files['xl/calcChain.xml']; // calcChain chỉ trỏ ô trong VÍ DỤ
+
+    let wb = dec.decode(files['xl/workbook.xml']);
+    wb = wb.replace(/<sheet [^>]*name="VÍ DỤ"[^>]*\/>/, '');
+    // mọi definedName gắn sheet index 1 (VÍ DỤ) sẽ thành sai -> bỏ
+    wb = wb.replace(/<definedName [^>]*localSheetId="1"[^>]*>[^<]*<\/definedName>/g, '');
+    files['xl/workbook.xml'] = enc.encode(wb);
+
+    let rels = dec.decode(files['xl/_rels/workbook.xml.rels']);
+    rels = rels.replace(/<Relationship [^>]*Target="worksheets\/sheet2\.xml"[^>]*\/>/, '');
+    rels = rels.replace(/<Relationship [^>]*Target="calcChain\.xml"[^>]*\/>/, '');
+    files['xl/_rels/workbook.xml.rels'] = enc.encode(rels);
+
+    let ct = dec.decode(files['[Content_Types].xml']);
+    ct = ct.replace(/<Override PartName="\/xl\/worksheets\/sheet2\.xml"[^>]*\/>/, '');
+    ct = ct.replace(/<Override PartName="\/xl\/drawings\/drawing2\.xml"[^>]*\/>/, '');
+    ct = ct.replace(/<Override PartName="\/xl\/calcChain\.xml"[^>]*\/>/, '');
+    files['[Content_Types].xml'] = enc.encode(ct);
+
+    if (files['docProps/app.xml']) {
+      let app = dec.decode(files['docProps/app.xml']);
+      app = app.replace(/<TitlesOfParts>[\s\S]*?<\/TitlesOfParts>/,
+        '<TitlesOfParts><vt:vector size="1" baseType="lpstr"><vt:lpstr>FORMAT</vt:lpstr></vt:vector></TitlesOfParts>');
+      app = app.replace(/<HeadingPairs>[\s\S]*?<\/HeadingPairs>/,
+        '<HeadingPairs><vt:vector size="2" baseType="variant"><vt:variant><vt:lpstr>Worksheets</vt:lpstr></vt:variant><vt:variant><vt:i4>1</vt:i4></vt:variant></vt:vector></HeadingPairs>');
+      files['docProps/app.xml'] = enc.encode(app);
+    }
+  }
+
   function buildFromTemplate(state, templateBytes, fflate) {
     const files = fflate.unzipSync(templateBytes);
     const SHEET = 'xl/worksheets/sheet1.xml';
     const dec = new TextDecoder('utf-8'), enc = new TextEncoder();
+    stripExampleSheet(files, dec, enc);
     let xml = dec.decode(files[SHEET]);
+    // Bỏ nhãn tĩnh "Trang ページ：    /" ở ô R2 (số trang sẽ in qua header để đúng từng trang)
+    xml = xml.replace(/<c r="R2"( s="\d+")?[^>]*>\s*<v>24<\/v>\s*<\/c>/, '<c r="R2"$1/>');
 
     const st = injectStyles(dec.decode(files['xl/styles.xml']));
     files['xl/styles.xml'] = enc.encode(st.xml);
@@ -279,9 +319,12 @@
     // độ rộng cột
     xml = xml.replace(/<cols>[\s\S]*?<\/cols>/, buildColsXml(widths));
 
-    // lề + đánh số trang (header phải) + ngắt trang thủ công
+    // lề + scale in A4 + đánh số trang (vào dòng "Trang ページ") + ngắt trang thủ công
     xml = xml.replace(/<pageMargins[^>]*\/>/, '<pageMargins left="0" right="0" top="0.5" bottom="0.2" header="0.3" footer="0"/>');
-    const headerFooter = '<headerFooter><oddHeader>&amp;R&amp;&quot;Arial&quot;&amp;10&amp;P/&amp;N</oddHeader></headerFooter>';
+    // scale 63% -> 70% cho vừa khổ A4; bỏ r:id để scale trong XML có hiệu lực
+    xml = xml.replace(/<pageSetup[^>]*\/>/, '<pageSetup paperSize="9" scale="70" orientation="landscape"/>');
+    // Số trang in vào ĐÚNG dòng "Trang ページ：" (góc trên phải), đúng từng trang (&P/&N)
+    const headerFooter = '<headerFooter><oddHeader>&amp;R&amp;&quot;Arial&quot;&amp;10Trang ページ： &amp;P／&amp;N</oddHeader></headerFooter>';
     // Template ĐÃ CÓ sẵn 1 thẻ <headerFooter/>; phải THAY THẾ (không chèn thêm),
     // nếu không sẽ trùng 2 thẻ -> Excel báo "We found a problem with content".
     if (/<headerFooter[^>]*\/>/.test(xml)) {

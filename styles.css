@@ -93,10 +93,10 @@ select, input[type="text"], input[type="number"] {
 .fmea-table thead .grp { background: var(--head-2); }
 
 /* Độ rộng cột (A..S) — thu hẹp cột chữ để A→"Biện pháp đề xuất" (M) vừa màn hình */
-.c-a { width: 185px; } .c-b { width: 120px; } .c-c { width: 190px; } .c-d { width: 40px; }
-.c-e { width: 48px; }  .c-f { width: 175px; } .c-g { width: 80px; }  .c-h { width: 42px; }
-.c-i { width: 135px; } .c-j { width: 185px; } .c-k { width: 42px; }  .c-l { width: 46px; }
-.c-m { width: 135px; } .c-n { width: 110px; } .c-o { width: 110px; }
+.c-a { width: 185px; } .c-b { width: 120px; } .c-c { width: 133px; } .c-d { width: 48px; }
+.c-e { width: 48px; }  .c-f { width: 123px; } .c-g { width: 80px; }  .c-h { width: 42px; }
+.c-i { width: 95px; }  .c-j { width: 185px; } .c-k { width: 42px; }  .c-l { width: 46px; }
+.c-m { width: 270px; } .c-n { width: 110px; } .c-o { width: 110px; }
 .c-p { width: 38px; }  .c-q { width: 38px; }  .c-r { width: 38px; }  .c-s { width: 44px; }
 
 /* Ô có thể sửa */
@@ -193,7 +193,9 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
 .meta-bar .tool-group { gap: 7px; flex: 0 0 auto; }
 .meta-bar label { white-space: nowrap; }
 .inp-md { width: 130px; }
-#projSelect { max-width: 220px; }
+/* nới rộng + chừa chỗ cho mũi tên ▼ để tên dài không che ký hiệu */
+#mProduct { width: 185px; padding-right: 22px; }
+#projSelect { width: 270px; padding-right: 22px; }
 .btn-light { background: #fff; color: var(--ink); border-color: #bdbdbd; }
 .btn-light:hover { background: var(--head); }
 
