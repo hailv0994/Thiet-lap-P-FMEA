@@ -540,40 +540,35 @@
     sel.innerHTML = '<option value="">— Chọn —</option>' +
       keys.map((k) => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
     if (keys.includes(cur)) sel.value = cur;
-    refreshMetaLists();
+    fillModelDatalist();
   }
 
-  // Gợi ý nhanh cho Bộ phận/Sản phẩm/Dây chuyền theo file Material (phân cấp)
-  // + gộp thêm giá trị từ các dự án đã lưu.
-  function refreshMetaLists() {
-    const TREE = window.PFMEA_MATERIAL || {};
+  // ----- Dropdown phân cấp Bộ phận > Sản phẩm > Dây chuyền (theo Material) -----
+  const TREE = () => window.PFMEA_MATERIAL || {};
+  // Đổ option cho 1 <select>; giữ giá trị 'keep' nếu có, kể cả khi nằm ngoài Material.
+  function fillSelect(id, items, keep, placeholder) {
+    const sel = $(id);
+    const list = items.slice();
+    if (keep && !list.includes(keep)) list.unshift(keep); // không mất giá trị đã lưu
+    sel.innerHTML = `<option value="">${placeholder}</option>` +
+      list.map((v) => `<option value="${esc(v)}"${v === keep ? ' selected' : ''}>${esc(v)}</option>`).join('');
+    sel.value = keep || '';
+  }
+  function fillDept(keep) { fillSelect('#mDept', Object.keys(TREE()), keep, '— Chọn bộ phận —'); }
+  function fillProduct(dept, keep) {
+    const prods = TREE()[dept] ? Object.keys(TREE()[dept]) : [];
+    fillSelect('#mProduct', prods, keep, '— Chọn sản phẩm —');
+  }
+  function fillLine(dept, product, keep) {
+    const lines = (TREE()[dept] && TREE()[dept][product]) ? TREE()[dept][product] : [];
+    fillSelect('#mLine', lines, keep, lines.length ? '— Chọn dây chuyền —' : '— (không có) —');
+  }
+  // Model: gõ tự do, gợi ý từ dự án đã lưu
+  function fillModelDatalist() {
     const map = readProjects();
-    const saved = { dept: new Set(), product: new Set(), line: new Set(), model: new Set() };
-    Object.keys(map).forEach((k) => {
-      const m = map[k].meta || {};
-      ['dept', 'product', 'line', 'model'].forEach((f) => { if (m[f]) saved[f].add(m[f]); });
-    });
-
-    const curDept = ($('#mDept').value || '').trim();
-    const curProd = ($('#mProduct').value || '').trim();
-
-    const depts = new Set([...Object.keys(TREE), ...saved.dept]);
-
-    // Sản phẩm: lọc theo bộ phận nếu khớp, ngược lại liệt kê tất cả
-    const products = new Set(saved.product);
-    if (TREE[curDept]) Object.keys(TREE[curDept]).forEach((p) => products.add(p));
-    else Object.values(TREE).forEach((o) => Object.keys(o).forEach((p) => products.add(p)));
-
-    // Dây chuyền: lọc theo bộ phận+sản phẩm nếu khớp, ngược lại liệt kê tất cả
-    const lines = new Set(saved.line);
-    const addLines = (arr) => arr.forEach((l) => lines.add(l));
-    if (TREE[curDept] && TREE[curDept][curProd]) addLines(TREE[curDept][curProd]);
-    else if (TREE[curDept]) Object.values(TREE[curDept]).forEach(addLines);
-    else Object.values(TREE).forEach((o) => Object.values(o).forEach(addLines));
-
-    const fill = (id, set) => { $(id).innerHTML = [...set].map((v) => `<option value="${esc(v)}">`).join(''); };
-    fill('#dlDept', depts); fill('#dlProduct', products);
-    fill('#dlLine', lines); fill('#dlModel', saved.model);
+    const models = new Set();
+    Object.keys(map).forEach((k) => { const m = (map[k].meta || {}).model; if (m) models.add(m); });
+    $('#dlModel').innerHTML = [...models].map((v) => `<option value="${esc(v)}">`).join('');
   }
 
   function readMetaInputs() {
@@ -583,10 +578,11 @@
     state.meta.model = $('#mModel').value.trim();
   }
   function writeMetaInputs() {
-    $('#mDept').value = state.meta.dept || '';
-    $('#mProduct').value = state.meta.product || '';
-    $('#mLine').value = state.meta.line || '';
+    fillDept(state.meta.dept || '');
+    fillProduct(state.meta.dept || '', state.meta.product || '');
+    fillLine(state.meta.dept || '', state.meta.product || '', state.meta.line || '');
     $('#mModel').value = state.meta.model || '';
+    fillModelDatalist();
   }
 
   let flashTimer = null;
@@ -665,12 +661,18 @@
     $('#btnDeleteProj').addEventListener('click', onDeleteProject);
     $('#btnExportJson').addEventListener('click', onExportJson);
     $('#fileJson').addEventListener('change', onImportJson);
-    ['#mDept', '#mProduct', '#mLine', '#mModel'].forEach((id) =>
-      $(id).addEventListener('input', () => {
-        readMetaInputs();
-        if (id === '#mDept' || id === '#mProduct') refreshMetaLists();
-        scheduleAutosave();
-      }));
+    $('#mDept').addEventListener('change', () => {
+      const dept = $('#mDept').value;
+      fillProduct(dept, '');      // đổ lại sản phẩm theo bộ phận, reset
+      fillLine(dept, '', '');     // reset dây chuyền
+      readMetaInputs(); scheduleAutosave();
+    });
+    $('#mProduct').addEventListener('change', () => {
+      fillLine($('#mDept').value, $('#mProduct').value, ''); // đổ lại dây chuyền theo sản phẩm
+      readMetaInputs(); scheduleAutosave();
+    });
+    $('#mLine').addEventListener('change', () => { readMetaInputs(); scheduleAutosave(); });
+    $('#mModel').addEventListener('input', () => { readMetaInputs(); scheduleAutosave(); });
 
     const tbody = $('#fmea tbody');
     tbody.addEventListener('input', onInput);
