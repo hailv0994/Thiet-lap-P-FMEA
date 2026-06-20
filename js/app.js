@@ -135,12 +135,21 @@
 
   function effectCellHTML(p, r) {
     const idx = findSeverityIdx(r);
+    const chosen = !!r.effectStdText;
     return `<td class="auto" rowspan="@RS@" data-proc="${p.id}" data-req="${r.id}">
       <div class="effect-cell">
         <textarea data-field="effectAnalysis" rows="2" placeholder="① Tự phân tích ảnh hưởng…">${esc(r.effectAnalysis)}</textarea>
-        <div class="effect-arrow">=&gt; (② chọn theo tiêu chuẩn đánh giá S)</div>
-        <select data-field="effectStd">${severityOptions(idx)}</select>
-        <div class="std-preview" id="prev-${r.id}">${esc(r.effectStdText || '')}</div>
+        <div class="effect-std" data-proc="${p.id}" data-req="${r.id}">
+          <div class="std-pick"${chosen ? ' style="display:none"' : ''}>
+            <div class="effect-arrow">=&gt; (② chọn theo tiêu chuẩn đánh giá S)</div>
+            <select data-field="effectStd">${severityOptions(idx)}</select>
+          </div>
+          <div class="std-show"${chosen ? '' : ' style="display:none"'}>
+            <span class="std-arrow">=&gt;</span>
+            <span class="std-text" id="text-${r.id}">${esc(r.effectStdText || '')}</span>
+            <button class="mini-btn edit-eff" data-action="edit-effect" title="Đổi lựa chọn">✎ đổi</button>
+          </div>
+        </div>
       </div></td>`;
   }
 
@@ -299,12 +308,19 @@
       const { pid, rid } = dataset(el);
       const r = getReq(pid, rid); if (!r) return;
       const idx = el.value === '' ? -1 : +el.value;
-      if (idx < 0) { r.effectStdText = ''; r.effectScope = ''; r.severity = ''; }
-      else {
+      const container = el.closest('.effect-std');
+      if (idx < 0) {
+        r.effectStdText = ''; r.effectScope = ''; r.severity = '';
+        // không chọn gì -> vẫn để picker hiển thị
+      } else {
         const row = window.SEVERITY_TABLE[idx];
         r.effectStdText = row.text; r.effectScope = row.scope; r.severity = row.rank;
+        const txt = $(`#text-${rid}`); if (txt) txt.textContent = r.effectStdText;
+        if (container) {
+          container.querySelector('.std-pick').style.display = 'none';
+          container.querySelector('.std-show').style.display = '';
+        }
       }
-      const prev = $(`#prev-${rid}`); if (prev) prev.textContent = r.effectStdText;
       refreshReqScores(pid, rid);
     }
   }
@@ -315,6 +331,16 @@
     const action = btn.dataset.action;
     const { pid, rid, cid } = dataset(btn);
 
+    if (action === 'edit-effect') {
+      const container = btn.closest('.effect-std');
+      if (container) {
+        container.querySelector('.std-show').style.display = 'none';
+        container.querySelector('.std-pick').style.display = '';
+        const sel = container.querySelector('select');
+        if (sel) sel.focus();
+      }
+      return;
+    }
     if (action === 'add-cause') {
       const r = getReq(pid, rid); if (r) { r.causes.push(newCause()); render(); }
     } else if (action === 'del-cause') {
@@ -389,102 +415,36 @@
   }
 
   // ============================ Xuất Excel =========================
+  // Giải mã base64 -> Uint8Array (template .xlsx nhúng sẵn)
+  function b64ToBytes(b64) {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
   function exportXlsx() {
     if (!state.processes.length) return;
-    const A = {}; // địa chỉ -> giá trị
-    const merges = [];
-    const set = (r, c, v) => { A[XLSX.utils.encode_cell({ r: r - 1, c })] = v; };
-    const mrg = (r1, c1, r2, c2) =>
-      merges.push({ s: { r: r1 - 1, c: c1 }, e: { r: r2 - 1, c: c2 } });
-
-    // ----- Tiêu đề + header (giống FORM) -----
-    set(1, 0, '　＜GL SQS0811 Quy định vận dụng D/P FMEA　Phụ lục - 4　GL SQS0811 D/P FMEA運用規定　付表-4 ＞');
-    set(2, 17, 'Trang ページ：        /');
-    const H = [
-      'Quy trình / Bước /  Chức năng\nプロセス\nステップ/機能\nHạng mục yêu cầu 要求事項',
-      'Dạng hỏng hóc mang tính tiềm ẩn\n潜在的故障モード',
-      'Ảnh hưởng của hỏng hóc mang tính tiềm ẩn\n潜在的故障影響',
-      'Mức độ nghiêm trọng\n厳しさ\n(S)', 'Phân loại\n分類',
-      'Nguyên nhân của hỏng hóc mang tính tiềm ẩn\n潜在的故障原因',
-      'Phản ánh lỗi quá khứ\n過去トラ反映', 'Tần suất phát sinh\n発生頻度(O)',
-      'Quản lý quy trình hiện tại\nDự phòng\n現行のプロセス管理\n予防',
-      'Quản lý quy trình hiện tại\nPhát hiện ra\n現行のプロセス管理\n検出',
-      'Phát hiện ra\n検出\n(D)', 'ＲＰＮ', 'Biện pháp đề xuất\n推奨処置',
-      'Người chịu trách nhiệm và thời hạn hoàn thành mục tiêu\n責任者及び\n目標完了期限',
-    ];
-    H.forEach((t, c) => { set(4, c, t); mrg(4, c, 9, c); });
-    set(4, 14, 'Kết quả xử lý　処置結果'); mrg(4, 14, 4, 18);
-    set(5, 14, 'Biện pháp được sử dụng và ngày hoàn thành\n取られた処置\n及び完了日'); mrg(5, 14, 9, 14);
-    set(5, 15, 'Mức độ nghiêm trọng\n厳しさ'); mrg(5, 15, 9, 15);
-    set(5, 16, 'Tần suất phát sinh\n発生頻度'); mrg(5, 16, 9, 16);
-    set(5, 17, 'Phát hiện ra\n検出'); mrg(5, 17, 9, 17);
-    set(5, 18, 'RPN'); mrg(5, 18, 9, 18);
-
-    // ----- Dữ liệu từ row 10 -----
-    let row = 10;
-    for (const p of state.processes) {
-      const procStart = row;
-      const totalRows = p.reqs.reduce((n, r) => n + r.causes.length, 0) || 1;
-
-      // Cột A — nội dung công đoạn
-      const reqList = p.reqs.map((r, i) => `${i + 1}.${r.reqText}`).join('\n');
-      const aText = `${p.no ? p.no + '.' : ''}${p.name}\n\n-Chức năng: \n${p.func}\n\n-Yêu cầu: \n${reqList}`;
-      set(procStart, 0, aText);
-      if (totalRows > 1) mrg(procStart, 0, procStart + totalRows - 1, 0);
-
-      for (const r of p.reqs) {
-        const reqStart = row;
-        const rs = r.causes.length || 1;
-        // B,C,D,E (gộp theo số nguyên nhân)
-        set(reqStart, 1, r.failureMode);
-        const effect = r.effectAnalysis
-          ? (r.effectStdText ? r.effectAnalysis + '\n=>' + r.effectStdText : r.effectAnalysis)
-          : (r.effectStdText || '');
-        set(reqStart, 2, effect);
-        set(reqStart, 3, r.severity);
-        set(reqStart, 4, r.classification);
-        if (rs > 1) [1, 2, 3, 4].forEach((c) => mrg(reqStart, c, reqStart + rs - 1, c));
-
-        r.causes.forEach((c) => {
-          set(row, 5, c.cause);
-          set(row, 6, c.pastTrouble);
-          set(row, 7, c.occurrence);
-          set(row, 8, c.prevention);
-          const det = `-Phát hiện ra nguyên nhân:\n${c.detectCause}\n-Phát hiện ra dạng hỏng hóc:\n${r.detectFailureAuto}`;
-          set(row, 9, det);
-          set(row, 10, c.detection);
-          const rpn = rpnOf(r, c);
-          if (rpn) set(row, 11, rpn);
-          set(row, 12, c.action);
-          set(row, 13, c.responsible);
-          set(row, 14, c.actionTaken);
-          set(row, 15, c.s2); set(row, 16, c.o2); set(row, 17, c.d2);
-          const rpn2 = (+c.s2 && +c.o2 && +c.d2) ? (+c.s2) * (+c.o2) * (+c.d2) : '';
-          if (rpn2) set(row, 18, rpn2);
-          row++;
-        });
-      }
+    if (!window.PFMEA_TEMPLATE_B64 || !window.fflate || !window.TemplateExport) {
+      alert('Thiếu template hoặc thư viện nén. Không thể xuất.');
+      return;
     }
-    // footer
-    set(row + 1, 0, 'Bản áp dụng số 240101 （Các BU）　適用No.240101版（各BU）');
+    // Đổ dữ liệu vào file template gốc -> GIỮ NGUYÊN 100% định dạng P-FMEA
+    const templateBytes = b64ToBytes(window.PFMEA_TEMPLATE_B64);
+    const out = window.TemplateExport.buildFromTemplate(state, templateBytes, window.fflate);
 
-    // ----- Tạo sheet -----
-    const ws = {};
-    let maxR = 0;
-    for (const addr in A) {
-      ws[addr] = { t: typeof A[addr] === 'number' ? 'n' : 's', v: A[addr] };
-      const rc = XLSX.utils.decode_cell(addr);
-      if (rc.r > maxR) maxR = rc.r;
-    }
-    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: maxR, c: 18 } });
-    ws['!merges'] = merges;
-    ws['!cols'] = [28, 20, 32, 6, 7, 28, 12, 6, 22, 32, 6, 7, 20, 18, 20, 5, 5, 5, 6]
-      .map((w) => ({ wch: w }));
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'P-FMEA');
+    const blob = new Blob([out], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
     const today = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(wb, `P-FMEA_${today}.xlsx`);
+    a.href = url;
+    a.download = `P-FMEA_${today}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   // ============================ Khởi tạo ===========================

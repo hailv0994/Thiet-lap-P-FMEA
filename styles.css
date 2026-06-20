@@ -136,9 +136,12 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
 .effect-cell select {
   width: 100%; font-size: 11px; padding: 4px; margin-top: 2px; background: var(--auto);
 }
-.std-preview {
-  margin-top: 4px; font-size: 11px; color: var(--ink-soft); background: var(--auto);
-  border: 1px dashed var(--line); border-radius: 4px; padding: 4px; white-space: pre-wrap;
+.std-show { margin-top: 2px; font-size: 11.5px; color: var(--ink); line-height: 1.4; }
+.std-show .std-arrow { color: var(--muted); margin-right: 3px; }
+.std-show .std-text { white-space: pre-wrap; }
+.std-show .edit-eff {
+  display: inline-block; margin-left: 6px; padding: 1px 6px; font-size: 10px;
+  vertical-align: middle;
 }
 
 /* Khối phát hiện (cột J) */

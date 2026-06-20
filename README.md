@@ -54,12 +54,15 @@ nằm trong **một ô** Excel.
 
 ## Ghi chú về file Excel xuất ra
 
-- Giữ đúng **cấu trúc, tiêu đề, vùng gộp ô (merge) và độ rộng cột** của format
-  P-FMEA.
-- **Đường viền / màu nền / font** không được ghi kèm (giới hạn của thư viện
-  Excel bản miễn phí). Bản trên web hiển thị đầy đủ định dạng; file Excel
-  chú trọng dữ liệu đúng vị trí. Có thể dán vào file mẫu công ty nếu cần
-  định dạng đầy đủ.
+File Excel xuất ra **giữ nguyên 100% định dạng** của form P-FMEA gốc: viền,
+màu nền, font, vùng gộp ô (merge), độ rộng cột, tiêu đề song ngữ… Cách làm:
+dữ liệu được **đổ thẳng vào file template gốc** (`FORM_NOI_DUNG_PFMEA.xlsx`
+nhúng sẵn trong app), chỉ thay giá trị các ô và thêm vùng merge cho dữ liệu,
+**không dựng lại** bảng — nên không mất bất kỳ định dạng nào.
+
+- Dữ liệu được ghi vào sheet **FORMAT**; sheet **VÍ DỤ** giữ nguyên để tham khảo.
+- Khi một dạng hỏng hóc có nhiều nguyên nhân, các cột Dạng hỏng / Ảnh hưởng /
+  S / Phân loại được gộp ô tương ứng.
 
 ## Cấu trúc thư mục
 
