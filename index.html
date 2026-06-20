@@ -13,9 +13,42 @@
       <span class="subtitle">Thiết lập P-FMEA tự động từ Control Plan (CP)</span>
     </div>
     <div class="topbar-right">
+      <button id="btnSave" class="btn btn-light">💾 Lưu</button>
       <button id="btnExport" class="btn btn-primary" disabled>⬇ Xuất Excel (.xlsx)</button>
     </div>
   </header>
+
+  <section class="toolbar meta-bar">
+    <div class="tool-group">
+      <label>Bộ phận:
+        <input type="text" id="mDept" list="dlDept" class="inp-md" placeholder="VD: Hàn" />
+      </label>
+      <label>Sản phẩm:
+        <input type="text" id="mProduct" list="dlProduct" class="inp-md" placeholder="VD: MAIN PIPE S/COMP" />
+      </label>
+      <label>Dây chuyền:
+        <input type="text" id="mLine" list="dlLine" class="inp-md" placeholder="VD: HÀN LINE 1" />
+      </label>
+      <label>Model:
+        <input type="text" id="mModel" list="dlModel" class="inp-md" placeholder="VD: G823-00" />
+      </label>
+    </div>
+    <div class="tool-group right">
+      <label>Mở dự án đã lưu:
+        <select id="projSelect"><option value="">— Chọn —</option></select>
+      </label>
+      <button id="btnDeleteProj" class="btn ghost" title="Xóa dự án đã lưu">🗑</button>
+      <button id="btnExportJson" class="btn ghost" title="Tải file sao lưu (.json)">⬇ Sao lưu</button>
+      <label class="file-btn" title="Nạp file sao lưu (.json)">
+        <input type="file" id="fileJson" accept=".json" hidden />
+        <span class="btn ghost">⬆ Nạp sao lưu</span>
+      </label>
+    </div>
+    <datalist id="dlDept"></datalist>
+    <datalist id="dlProduct"></datalist>
+    <datalist id="dlLine"></datalist>
+    <datalist id="dlModel"></datalist>
+  </section>
 
   <section class="toolbar">
     <div class="tool-group">

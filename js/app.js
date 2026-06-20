@@ -8,8 +8,13 @@
   // ----------------------------- State -----------------------------
   let UID = 1;
   const uid = (p) => p + (UID++);
-  const state = { processes: [] };   // [{id,no,name,func,reqs:[...]}]
+  const state = {
+    meta: { dept: '', product: '', line: '', model: '' },
+    processes: [],
+  };
   let workbook = null;               // workbook CP đang mở
+  const LS_PROJECTS = 'pfmea_projects_v1';
+  const LS_AUTOSAVE = 'pfmea_autosave_v1';
 
   const $ = (s) => document.querySelector(s);
   const esc = (s) => (s == null ? '' : String(s))
@@ -18,10 +23,11 @@
 
   // --------------------- Tạo dữ liệu mặc định ----------------------
   function newCause() {
-    return { id: uid('c'), cause: '', pastTrouble: '', occurrence: '',
+    return { id: uid('c'), category: '', cause: '', pastTrouble: '', occurrence: '',
       prevention: '', detectCause: '', detection: '',
       action: '', responsible: '', actionTaken: '', s2: '', o2: '', d2: '' };
   }
+  const FOUR_M = ['Man', 'Machine', 'Method', 'Material'];
 
   function detectAuto(item) {
     let s = 'Kiểm tra ' + (item.name || '');
@@ -213,8 +219,11 @@
                      <div class="cell-edit" contenteditable="true" data-field="classification">${esc(r.classification)}</div></td>`;
           }
 
-          // F — nguyên nhân + nút thêm/xóa
+          // F — nguyên nhân: 4M + nội dung + nút thêm/xóa
+          const mOpts = ['<option value="">— 4M —</option>']
+            .concat(FOUR_M.map((m) => `<option${c.category === m ? ' selected' : ''}>${m}</option>`)).join('');
           tr += `<td data-proc="${p.id}" data-req="${r.id}" data-cause="${c.id}">
+                   <select class="four-m" data-field="category">${mOpts}</select>
                    <div class="cell-edit" contenteditable="true" data-field="cause" data-ph="Nguyên nhân ${ci + 1}">${esc(c.cause)}</div>
                    <div class="cause-toolbar">
                      <button class="mini-btn" data-action="add-cause">＋ NN</button>
@@ -248,6 +257,7 @@
       });
     }
     tbody.innerHTML = rows.join('');
+    scheduleAutosave();
   }
 
   // ===================== Cập nhật không re-render =====================
@@ -300,11 +310,18 @@
     const c = getCause(pid, rid, cid); if (!c) return;
     c[field] = val;
     if (field === 'occurrence' || field === 'detection') refreshCauseRPN(pid, rid, cid);
+    scheduleAutosave();
   }
 
   function onChange(e) {
     const el = e.target;
-    if (el.dataset && el.dataset.field === 'effectStd') {
+    const field = el.dataset && el.dataset.field;
+    if (field === 'category') {
+      const { pid, rid, cid } = dataset(el);
+      const c = getCause(pid, rid, cid); if (c) { c.category = el.value; scheduleAutosave(); }
+      return;
+    }
+    if (field === 'effectStd') {
       const { pid, rid } = dataset(el);
       const r = getReq(pid, rid); if (!r) return;
       const idx = el.value === '' ? -1 : +el.value;
@@ -322,6 +339,7 @@
         }
       }
       refreshReqScores(pid, rid);
+      scheduleAutosave();
     }
   }
 
@@ -414,6 +432,150 @@
     state.processes = []; render();
   }
 
+  // ====================== Lưu / Mở dự án (localStorage) ======================
+  function snapshot() {
+    return JSON.stringify({ meta: state.meta, processes: state.processes });
+  }
+  function applySnapshot(obj) {
+    state.meta = Object.assign({ dept: '', product: '', line: '', model: '' }, obj.meta || {});
+    state.processes = obj.processes || [];
+    // tránh trùng id: đẩy UID vượt qua mọi id số sẵn có
+    let mx = 0;
+    JSON.stringify(state.processes).replace(/[a-z](\d+)/g, (_, n) => { mx = Math.max(mx, +n); return _; });
+    UID = mx + 1;
+    writeMetaInputs();
+    render();
+  }
+
+  let autosaveTimer = null;
+  function scheduleAutosave() {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(() => {
+      try { localStorage.setItem(LS_AUTOSAVE, snapshot()); } catch (e) { /* hết dung lượng */ }
+    }, 600);
+  }
+
+  function readProjects() {
+    try { return JSON.parse(localStorage.getItem(LS_PROJECTS) || '{}'); } catch (e) { return {}; }
+  }
+  function writeProjects(map) {
+    localStorage.setItem(LS_PROJECTS, JSON.stringify(map));
+  }
+  function projectKey(meta) {
+    return [meta.model, meta.line, meta.product, meta.dept].map((s) => (s || '').trim()).join(' | ').replace(/(\s\|\s)+$/, '');
+  }
+
+  function onSave() {
+    readMetaInputs();
+    if (!state.meta.model.trim()) {
+      alert('Hãy nhập Model trước khi lưu (dùng làm tên dự án).');
+      $('#mModel').focus(); return;
+    }
+    if (!state.processes.length) { alert('Chưa có dữ liệu để lưu.'); return; }
+    const map = readProjects();
+    const key = projectKey(state.meta);
+    map[key] = { meta: state.meta, processes: state.processes, savedAt: new Date().toISOString() };
+    writeProjects(map);
+    refreshProjectUI();
+    $('#projSelect').value = key;
+    flash('Đã lưu: ' + key);
+  }
+
+  function onPickProject() {
+    const key = $('#projSelect').value;
+    if (!key) return;
+    const map = readProjects();
+    const proj = map[key];
+    if (!proj) return;
+    if (state.processes.length && !confirm('Mở dự án "' + key + '"? Dữ liệu hiện tại chưa lưu sẽ bị thay thế.')) {
+      $('#projSelect').value = projectKey(state.meta); return;
+    }
+    applySnapshot(proj);
+    flash('Đã mở: ' + key);
+  }
+
+  function onDeleteProject() {
+    const key = $('#projSelect').value;
+    if (!key) { alert('Chọn một dự án để xóa.'); return; }
+    if (!confirm('Xóa dự án đã lưu "' + key + '"?')) return;
+    const map = readProjects();
+    delete map[key];
+    writeProjects(map);
+    refreshProjectUI();
+    flash('Đã xóa: ' + key);
+  }
+
+  function onExportJson() {
+    const data = { projects: readProjects(), current: JSON.parse(snapshot()), exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `P-FMEA_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function onImportJson(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        const map = readProjects();
+        Object.assign(map, data.projects || {});
+        writeProjects(map);
+        refreshProjectUI();
+        flash('Đã nạp file sao lưu (' + Object.keys(data.projects || {}).length + ' dự án).');
+      } catch (err) { alert('File sao lưu không hợp lệ: ' + err.message); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
+  function refreshProjectUI() {
+    const map = readProjects();
+    const keys = Object.keys(map).sort();
+    const sel = $('#projSelect');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— Chọn —</option>' +
+      keys.map((k) => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+    if (keys.includes(cur)) sel.value = cur;
+    // datalist gợi ý
+    const sets = { dept: new Set(), product: new Set(), line: new Set(), model: new Set() };
+    keys.forEach((k) => {
+      const m = map[k].meta || {};
+      ['dept', 'product', 'line', 'model'].forEach((f) => { if (m[f]) sets[f].add(m[f]); });
+    });
+    const fill = (id, set) => { $(id).innerHTML = [...set].map((v) => `<option value="${esc(v)}">`).join(''); };
+    fill('#dlDept', sets.dept); fill('#dlProduct', sets.product);
+    fill('#dlLine', sets.line); fill('#dlModel', sets.model);
+  }
+
+  function readMetaInputs() {
+    state.meta.dept = $('#mDept').value.trim();
+    state.meta.product = $('#mProduct').value.trim();
+    state.meta.line = $('#mLine').value.trim();
+    state.meta.model = $('#mModel').value.trim();
+  }
+  function writeMetaInputs() {
+    $('#mDept').value = state.meta.dept || '';
+    $('#mProduct').value = state.meta.product || '';
+    $('#mLine').value = state.meta.line || '';
+    $('#mModel').value = state.meta.model || '';
+  }
+
+  let flashTimer = null;
+  function flash(msg) {
+    let el = $('#flash');
+    if (!el) {
+      el = document.createElement('div'); el.id = 'flash'; el.className = 'flash';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+
   // ============================ Xuất Excel =========================
   // Giải mã base64 -> Uint8Array (template .xlsx nhúng sẵn)
   function b64ToBytes(b64) {
@@ -447,15 +609,39 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  function onExportClick() { readMetaInputs(); exportXlsx(); }
+
   // ============================ Khởi tạo ===========================
   function init() {
     buildHeader();
+
+    // khôi phục phiên làm việc gần nhất (nếu có)
+    try {
+      const auto = localStorage.getItem(LS_AUTOSAVE);
+      if (auto) { const obj = JSON.parse(auto); state.meta = Object.assign(state.meta, obj.meta || {}); state.processes = obj.processes || []; }
+    } catch (e) { /* bỏ qua */ }
+    let mx = 0;
+    JSON.stringify(state.processes).replace(/[a-z](\d+)/g, (_, n) => { mx = Math.max(mx, +n); return _; });
+    UID = mx + 1;
+    writeMetaInputs();
+    refreshProjectUI();
     render();
+    if (state.processes.length) {
+      $('#btnAddProc').hidden = false; $('#btnClear').hidden = false;
+    }
+
     $('#fileCP').addEventListener('change', onFile);
     $('#btnLoad').addEventListener('click', onLoadProc);
     $('#btnAddProc').addEventListener('click', onAddProc);
     $('#btnClear').addEventListener('click', onClear);
-    $('#btnExport').addEventListener('click', exportXlsx);
+    $('#btnExport').addEventListener('click', onExportClick);
+    $('#btnSave').addEventListener('click', onSave);
+    $('#projSelect').addEventListener('change', onPickProject);
+    $('#btnDeleteProj').addEventListener('click', onDeleteProject);
+    $('#btnExportJson').addEventListener('click', onExportJson);
+    $('#fileJson').addEventListener('change', onImportJson);
+    ['#mDept', '#mProduct', '#mLine', '#mModel'].forEach((id) =>
+      $(id).addEventListener('input', () => { readMetaInputs(); scheduleAutosave(); }));
 
     const tbody = $('#fmea tbody');
     tbody.addEventListener('input', onInput);

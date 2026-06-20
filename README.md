@@ -27,6 +27,20 @@ thư mục `vendor/`.
 Có thể nạp nhiều công đoạn (mỗi lần 1 sheet) vào cùng một bảng, hoặc bấm
 **＋ Công đoạn trống** để tự nhập tay.
 
+### Lưu & mở lại
+
+- Điền **Bộ phận / Sản phẩm / Dây chuyền / Model** ở thanh trên cùng, rồi bấm
+  **💾 Lưu** — dữ liệu được lưu trong trình duyệt theo Model.
+- Web **tự lưu** mỗi khi nhập; mở lại trang sẽ khôi phục phiên gần nhất.
+- Chọn ở **Mở dự án đã lưu** để tải lại một Model đã lập trước đó.
+- **⬇ Sao lưu / ⬆ Nạp sao lưu**: xuất/nhập toàn bộ dự án ra file `.json` để
+  chuyển sang máy khác hoặc lưu trữ.
+
+### Nguyên nhân (4M)
+
+Mỗi nguyên nhân chọn nhóm **Man / Machine / Method / Material** trước khi phân
+tích; khi xuất Excel sẽ in kèm (vd: `Man: cài đặt điện áp sai`).
+
 ---
 
 ## Quy tắc ánh xạ dữ liệu (CP → P-FMEA)
