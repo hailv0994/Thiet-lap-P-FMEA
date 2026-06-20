@@ -540,15 +540,40 @@
     sel.innerHTML = '<option value="">— Chọn —</option>' +
       keys.map((k) => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
     if (keys.includes(cur)) sel.value = cur;
-    // datalist gợi ý
-    const sets = { dept: new Set(), product: new Set(), line: new Set(), model: new Set() };
-    keys.forEach((k) => {
+    refreshMetaLists();
+  }
+
+  // Gợi ý nhanh cho Bộ phận/Sản phẩm/Dây chuyền theo file Material (phân cấp)
+  // + gộp thêm giá trị từ các dự án đã lưu.
+  function refreshMetaLists() {
+    const TREE = window.PFMEA_MATERIAL || {};
+    const map = readProjects();
+    const saved = { dept: new Set(), product: new Set(), line: new Set(), model: new Set() };
+    Object.keys(map).forEach((k) => {
       const m = map[k].meta || {};
-      ['dept', 'product', 'line', 'model'].forEach((f) => { if (m[f]) sets[f].add(m[f]); });
+      ['dept', 'product', 'line', 'model'].forEach((f) => { if (m[f]) saved[f].add(m[f]); });
     });
+
+    const curDept = ($('#mDept').value || '').trim();
+    const curProd = ($('#mProduct').value || '').trim();
+
+    const depts = new Set([...Object.keys(TREE), ...saved.dept]);
+
+    // Sản phẩm: lọc theo bộ phận nếu khớp, ngược lại liệt kê tất cả
+    const products = new Set(saved.product);
+    if (TREE[curDept]) Object.keys(TREE[curDept]).forEach((p) => products.add(p));
+    else Object.values(TREE).forEach((o) => Object.keys(o).forEach((p) => products.add(p)));
+
+    // Dây chuyền: lọc theo bộ phận+sản phẩm nếu khớp, ngược lại liệt kê tất cả
+    const lines = new Set(saved.line);
+    const addLines = (arr) => arr.forEach((l) => lines.add(l));
+    if (TREE[curDept] && TREE[curDept][curProd]) addLines(TREE[curDept][curProd]);
+    else if (TREE[curDept]) Object.values(TREE[curDept]).forEach(addLines);
+    else Object.values(TREE).forEach((o) => Object.values(o).forEach(addLines));
+
     const fill = (id, set) => { $(id).innerHTML = [...set].map((v) => `<option value="${esc(v)}">`).join(''); };
-    fill('#dlDept', sets.dept); fill('#dlProduct', sets.product);
-    fill('#dlLine', sets.line); fill('#dlModel', sets.model);
+    fill('#dlDept', depts); fill('#dlProduct', products);
+    fill('#dlLine', lines); fill('#dlModel', saved.model);
   }
 
   function readMetaInputs() {
@@ -641,7 +666,11 @@
     $('#btnExportJson').addEventListener('click', onExportJson);
     $('#fileJson').addEventListener('change', onImportJson);
     ['#mDept', '#mProduct', '#mLine', '#mModel'].forEach((id) =>
-      $(id).addEventListener('input', () => { readMetaInputs(); scheduleAutosave(); }));
+      $(id).addEventListener('input', () => {
+        readMetaInputs();
+        if (id === '#mDept' || id === '#mProduct') refreshMetaLists();
+        scheduleAutosave();
+      }));
 
     const tbody = $('#fmea tbody');
     tbody.addEventListener('input', onInput);

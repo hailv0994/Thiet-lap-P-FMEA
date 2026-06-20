@@ -68,15 +68,26 @@ nằm trong **một ô** Excel.
 
 ## Ghi chú về file Excel xuất ra
 
-File Excel xuất ra **giữ nguyên 100% định dạng** của form P-FMEA gốc: viền,
-màu nền, font, vùng gộp ô (merge), độ rộng cột, tiêu đề song ngữ… Cách làm:
-dữ liệu được **đổ thẳng vào file template gốc** (`FORM_NOI_DUNG_PFMEA.xlsx`
-nhúng sẵn trong app), chỉ thay giá trị các ô và thêm vùng merge cho dữ liệu,
-**không dựng lại** bảng — nên không mất bất kỳ định dạng nào.
+File Excel xuất ra **giữ nguyên định dạng tiêu đề** của form P-FMEA gốc (đổ dữ
+liệu thẳng vào template `FORM_NOI_DUNG_PFMEA.xlsx` nhúng sẵn), đồng thời định
+dạng vùng dữ liệu cho dễ đọc & in:
 
-- Dữ liệu được ghi vào sheet **FORMAT**; sheet **VÍ DỤ** giữ nguyên để tham khảo.
-- Khi một dạng hỏng hóc có nhiều nguyên nhân, các cột Dạng hỏng / Ảnh hưởng /
-  S / Phân loại được gộp ô tương ứng.
+- **Font Arial 10pt** đồng nhất cho dữ liệu; **đặc tính đặc thù** canh giữa,
+  Arial 20pt (gấp đôi cỡ điểm S).
+- **Tự cân đối độ rộng cột** theo nội dung (tránh ô trống nhiều / ô kín chữ).
+- **Chiều cao dòng tự tính** theo nội dung → không mất chữ.
+- Ô "phát hiện ra": chỉ xuất nội dung (không in nhãn phụ).
+- In **A4 ngang**, **lặp tiêu đề (dòng 1–9)** mỗi trang, **tự đánh số trang
+  `1/N`** ở góc trên phải. Khi nội dung tràn trang, ô Quy trình/Dạng hỏng/Ảnh
+  hưởng được **lặp lại** ở đầu trang sau (không để trống).
+- Dữ liệu ghi vào sheet **FORMAT**; sheet **VÍ DỤ** giữ nguyên để tham khảo.
+- Nhiều nguyên nhân → gộp ô Dạng hỏng / Ảnh hưởng / S / Phân loại tương ứng.
+
+### Lựa chọn nhanh Bộ phận / Sản phẩm / Dây chuyền
+
+Ô **Bộ phận, Sản phẩm, Dây chuyền** có gợi ý nhanh theo file **MATERIAL.xlsx**
+(phân cấp: chọn Bộ phận → lọc Sản phẩm tương ứng → lọc Dây chuyền tương ứng).
+Vẫn gõ tay tự do nếu cần.
 
 ## Cấu trúc thư mục
 
