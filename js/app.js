@@ -14,7 +14,8 @@
   };
   let workbook = null;               // workbook CP đang mở
   const LS_PROJECTS = 'pfmea_projects_v1';
-  const LS_AUTOSAVE = 'pfmea_autosave_v1';
+  const LS_AUTOSAVE = 'pfmea_autosave_v1'; // (cũ) — chỉ đọc để gỡ phiên cũ
+  const LS_LAST = 'pfmea_last_meta_v1';    // ghi nhớ lựa chọn meta gần nhất
 
   const $ = (s) => document.querySelector(s);
   const esc = (s) => (s == null ? '' : String(s))
@@ -127,6 +128,10 @@
       </div>`).join('');
     return `<div class="proc-cell" data-proc="${p.id}">
         <div class="proc-head">
+          <span class="proc-move">
+            <button class="mini-btn" data-action="move-up" title="Lên trên">▲</button>
+            <button class="mini-btn" data-action="move-down" title="Xuống dưới">▼</button>
+          </span>
           <input data-field="no" class="inp-no" style="width:46px" value="${esc(p.no)}" placeholder="STT" />.
           <input data-field="name" style="width:150px" value="${esc(p.name)}" placeholder="Tên công đoạn" />
         </div>
@@ -375,6 +380,10 @@
       if (confirm('Xóa công đoạn này?')) {
         state.processes = state.processes.filter((p) => p.id !== pid); render();
       }
+    } else if (action === 'move-up') {
+      moveProc(pid, -1);
+    } else if (action === 'move-down') {
+      moveProc(pid, +1);
     }
   }
 
@@ -391,8 +400,7 @@
         alert('Không đọc được file: ' + err.message); return;
       }
       const sheets = window.CPParser.listSheets(workbook);
-      const sel = $('#sheetSelect');
-      sel.innerHTML = sheets.map((s) => `<option>${esc(s)}</option>`).join('');
+      $('#sheetInfo').textContent = `Đã đọc ${sheets.length} sheet — bấm để nạp tất cả công đoạn.`;
       $('#sheetGroup').hidden = false;
       $('#btnAddProc').hidden = false;
       $('#btnClear').hidden = false;
@@ -400,23 +408,49 @@
     reader.readAsArrayBuffer(file);
   }
 
+  // Nạp TẤT CẢ công đoạn: duyệt mọi sheet, sheet nào có hạng mục chất lượng thì
+  // thành 1 công đoạn. Bỏ qua sheet bìa/master (không có hạng mục).
   function onLoadProc() {
     if (!workbook) return;
-    const sheet = $('#sheetSelect').value;
-    const res = window.CPParser.parseSheet(workbook, sheet);
-    if (res.error) { alert(res.error); return; }
-    if (!res.items.length) { alert('Không tìm thấy hạng mục chất lượng nào trong sheet này.'); return; }
+    if (state.processes.length &&
+        !confirm('Nạp tất cả công đoạn trong file? Thao tác này thay thế toàn bộ công đoạn hiện có.')) return;
 
-    const proc = {
-      id: uid('p'),
-      no: $('#procNo').value.trim(),
-      name: res.processName || sheet,
-      func: '',
-      reqs: res.items.map(reqFromItem),
-    };
-    state.processes.push(proc);
+    const sheets = window.CPParser.listSheets(workbook);
+    const procs = [];
+    const skipped = [];
+    sheets.forEach((sheet) => {
+      let res;
+      try { res = window.CPParser.parseSheet(workbook, sheet); }
+      catch (err) { skipped.push(sheet); return; }
+      if (res.error || !res.items.length) { skipped.push(sheet); return; }
+      procs.push({
+        id: uid('p'),
+        no: String(procs.length + 1),
+        name: res.processName || sheet,
+        func: '',
+        reqs: res.items.map(reqFromItem),
+      });
+    });
+
+    if (!procs.length) {
+      alert('Không tìm thấy công đoạn nào có hạng mục chất lượng trong file.');
+      return;
+    }
+    state.processes = procs;
     render();
+    flash(`Đã nạp ${procs.length} công đoạn` + (skipped.length ? ` (bỏ qua ${skipped.length} sheet không phải công đoạn)` : '') + '.');
     document.querySelector('.sheet-wrap').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // Đổi thứ tự công đoạn (lên/xuống) + đánh lại STT tự động
+  function moveProc(pid, dir) {
+    const i = state.processes.findIndex((p) => p.id === pid);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= state.processes.length) return;
+    const arr = state.processes;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    arr.forEach((p, k) => { if (/^\d+$/.test((p.no || '').trim()) || !p.no) p.no = String(k + 1); });
+    render();
   }
 
   function onAddProc() {
@@ -439,10 +473,7 @@
   function applySnapshot(obj) {
     state.meta = Object.assign({ dept: '', product: '', line: '', model: '' }, obj.meta || {});
     state.processes = obj.processes || [];
-    // tránh trùng id: đẩy UID vượt qua mọi id số sẵn có
-    let mx = 0;
-    JSON.stringify(state.processes).replace(/[a-z](\d+)/g, (_, n) => { mx = Math.max(mx, +n); return _; });
-    UID = mx + 1;
+    reindexUID();
     writeMetaInputs();
     render();
   }
@@ -451,7 +482,14 @@
   function scheduleAutosave() {
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(() => {
-      try { localStorage.setItem(LS_AUTOSAVE, snapshot()); } catch (e) { /* hết dung lượng */ }
+      try {
+        // Nhớ lựa chọn meta gần nhất (để mở lại đúng dự án khi tải trang)
+        localStorage.setItem(LS_LAST, JSON.stringify(state.meta));
+        // Tự lưu nội dung vào đúng dự án (theo Model) — không mất dữ liệu khi làm
+        const had = !!readProjects()[currentKey()];
+        persistCurrent();
+        if (!had && currentKey() && state.processes.length) refreshProjectUI();
+      } catch (e) { /* hết dung lượng */ }
     }, 600);
   }
 
@@ -463,6 +501,65 @@
   }
   function projectKey(meta) {
     return [meta.model, meta.line, meta.product, meta.dept].map((s) => (s || '').trim()).join(' | ').replace(/(\s\|\s)+$/, '');
+  }
+  // Khóa định danh dự án hiện tại — CHỈ hợp lệ khi đã có Model (model = tên dự án).
+  function currentKey() { return state.meta.model.trim() ? projectKey(state.meta) : ''; }
+
+  // Đẩy UID vượt qua mọi id số sẵn có (tránh trùng khi nạp dữ liệu đã lưu)
+  function reindexUID() {
+    let mx = 0;
+    JSON.stringify(state.processes).replace(/[a-z](\d+)/g, (_, n) => { mx = Math.max(mx, +n); return _; });
+    UID = mx + 1;
+  }
+
+  // Lưu nội dung hiện tại vào kho dự án theo currentKey (nếu hợp lệ & có dữ liệu)
+  function persistCurrent() {
+    const key = currentKey();
+    if (!key || !state.processes.length) return;
+    const map = readProjects();
+    map[key] = { meta: Object.assign({}, state.meta), processes: state.processes, savedAt: new Date().toISOString() };
+    writeProjects(map);
+  }
+
+  // Hiển thị nội dung ứng với meta hiện tại:
+  //  - Nếu có dự án đã lưu khớp khóa -> nạp nội dung đó.
+  //  - Nếu chưa có Model (khóa không hợp lệ) hoặc keepIfNew -> GIỮ nội dung hiện tại.
+  //  - Còn lại (đã chọn đủ nhưng chưa từng lưu) -> để TRỐNG.
+  function loadForMeta(opts) {
+    opts = opts || {};
+    const key = currentKey();
+    const map = readProjects();
+    if (key && map[key]) {
+      state.processes = map[key].processes || [];
+      reindexUID();
+      render();
+      refreshProjectUI();
+      $('#projSelect').value = key;
+      return;
+    }
+    if (!key || opts.keepIfNew) {
+      persistCurrent();
+      render();
+      return;
+    }
+    state.processes = [];
+    render();
+  }
+
+  // Dọn các dự án "lạc" Material: bộ phận có trong Material nhưng sản phẩm thì không
+  // (đây là dữ liệu gõ tay cũ, vd "Damper case comp" thường) -> xóa để không hiện lại.
+  function pruneLegacyProjects() {
+    const tree = TREE();
+    if (!Object.keys(tree).length) return;
+    const map = readProjects();
+    let changed = false;
+    Object.keys(map).forEach((k) => {
+      const m = (map[k] && map[k].meta) || {};
+      if (m.dept && tree[m.dept] && m.product && !tree[m.dept][m.product]) {
+        delete map[k]; changed = true;
+      }
+    });
+    if (changed) writeProjects(map);
   }
 
   function onSave() {
@@ -543,16 +640,16 @@
     fillModelDatalist();
   }
 
-  // ----- Dropdown phân cấp Bộ phận > Sản phẩm > Dây chuyền (theo Material) -----
+  // ----- Dropdown phân cấp Bộ phận > Sản phẩm > Dây chuyền (CHỈ theo Material) -----
   const TREE = () => window.PFMEA_MATERIAL || {};
-  // Đổ option cho 1 <select>; giữ giá trị 'keep' nếu có, kể cả khi nằm ngoài Material.
+  // Đổ option cho 1 <select>. CHỈ liệt kê đúng dữ liệu Material (không thêm giá trị lạ).
+  // Nếu 'keep' nằm trong danh sách thì chọn sẵn; nếu không thì để trống.
   function fillSelect(id, items, keep, placeholder) {
     const sel = $(id);
-    const list = items.slice();
-    if (keep && !list.includes(keep)) list.unshift(keep); // không mất giá trị đã lưu
+    const has = keep && items.includes(keep);
     sel.innerHTML = `<option value="">${placeholder}</option>` +
-      list.map((v) => `<option value="${esc(v)}"${v === keep ? ' selected' : ''}>${esc(v)}</option>`).join('');
-    sel.value = keep || '';
+      items.map((v) => `<option value="${esc(v)}"${v === keep ? ' selected' : ''}>${esc(v)}</option>`).join('');
+    sel.value = has ? keep : '';
   }
   function fillDept(keep) { fillSelect('#mDept', Object.keys(TREE()), keep, '— Chọn bộ phận —'); }
   function fillProduct(dept, keep) {
@@ -636,20 +733,23 @@
   function init() {
     buildHeader();
 
-    // khôi phục phiên làm việc gần nhất (nếu có)
+    // Dọn dữ liệu gõ tay cũ lạc Material (vd "Damper case comp")
+    pruneLegacyProjects();
+    // Khôi phục LỰA CHỌN meta gần nhất — KHÔNG tự nạp nội dung, để tránh hiện
+    // nhầm dữ liệu cũ. Nội dung chỉ hiện khi khóa dự án (gồm Model) khớp bản đã lưu.
     try {
-      const auto = localStorage.getItem(LS_AUTOSAVE);
-      if (auto) { const obj = JSON.parse(auto); state.meta = Object.assign(state.meta, obj.meta || {}); state.processes = obj.processes || []; }
+      let m = null;
+      const last = localStorage.getItem(LS_LAST);
+      if (last) m = JSON.parse(last);
+      else { const auto = localStorage.getItem(LS_AUTOSAVE); if (auto) m = (JSON.parse(auto) || {}).meta; }
+      if (m) state.meta = Object.assign(state.meta, m);
     } catch (e) { /* bỏ qua */ }
-    let mx = 0;
-    JSON.stringify(state.processes).replace(/[a-z](\d+)/g, (_, n) => { mx = Math.max(mx, +n); return _; });
-    UID = mx + 1;
+    localStorage.removeItem(LS_AUTOSAVE); // bỏ kiểu lưu chung của phiên cũ
     writeMetaInputs();
+    readMetaInputs();        // đồng bộ lại: giá trị lạc Material trở thành rỗng
     refreshProjectUI();
-    render();
-    if (state.processes.length) {
-      $('#btnAddProc').hidden = false; $('#btnClear').hidden = false;
-    }
+    loadForMeta({});         // nạp đúng dự án khớp meta (nếu có), ngược lại để trống
+    $('#btnAddProc').hidden = false; $('#btnClear').hidden = false;
 
     $('#fileCP').addEventListener('change', onFile);
     $('#btnLoad').addEventListener('click', onLoadProc);
@@ -662,17 +762,35 @@
     $('#btnExportJson').addEventListener('click', onExportJson);
     $('#fileJson').addEventListener('change', onImportJson);
     $('#mDept').addEventListener('change', () => {
+      persistCurrent();                       // lưu nội dung đang làm theo khóa cũ
       const dept = $('#mDept').value;
-      fillProduct(dept, '');      // đổ lại sản phẩm theo bộ phận, reset
-      fillLine(dept, '', '');     // reset dây chuyền
-      readMetaInputs(); scheduleAutosave();
+      fillProduct(dept, '');                  // đổ lại sản phẩm theo bộ phận, reset
+      fillLine(dept, '', '');                 // reset dây chuyền
+      readMetaInputs();
+      loadForMeta({});                        // hiện dự án khớp, hoặc để trống
+      localStorage.setItem(LS_LAST, JSON.stringify(state.meta));
     });
     $('#mProduct').addEventListener('change', () => {
-      fillLine($('#mDept').value, $('#mProduct').value, ''); // đổ lại dây chuyền theo sản phẩm
-      readMetaInputs(); scheduleAutosave();
+      persistCurrent();
+      fillLine($('#mDept').value, $('#mProduct').value, ''); // đổ lại dây chuyền
+      readMetaInputs();
+      loadForMeta({});
+      localStorage.setItem(LS_LAST, JSON.stringify(state.meta));
     });
-    $('#mLine').addEventListener('change', () => { readMetaInputs(); scheduleAutosave(); });
-    $('#mModel').addEventListener('input', () => { readMetaInputs(); scheduleAutosave(); });
+    $('#mLine').addEventListener('change', () => {
+      persistCurrent();
+      readMetaInputs();
+      loadForMeta({});
+      localStorage.setItem(LS_LAST, JSON.stringify(state.meta));
+    });
+    // Model: gõ tự do. Khi nhập xong (change) mới nạp/giữ nội dung theo Model.
+    $('#mModel').addEventListener('change', () => {
+      persistCurrent();                       // lưu nội dung theo Model cũ
+      readMetaInputs();                        // Model mới
+      loadForMeta({ keepIfNew: true });        // có dữ liệu cũ thì hiện; chưa có thì giữ nội dung đang làm
+      localStorage.setItem(LS_LAST, JSON.stringify(state.meta));
+    });
+    $('#mModel').addEventListener('input', () => { readMetaInputs(); });
 
     const tbody = $('#fmea tbody');
     tbody.addEventListener('input', onInput);

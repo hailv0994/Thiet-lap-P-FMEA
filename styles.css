@@ -166,6 +166,9 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
 }
 .proc-cell .req-line { display: flex; gap: 4px; align-items: flex-start; margin-top: 3px; }
 .proc-cell .req-line span.idx { font-weight: 600; padding-top: 5px; }
+.proc-cell .proc-move { display: inline-flex; gap: 2px; margin-right: 4px; vertical-align: middle; }
+.proc-cell .proc-move .mini-btn { padding: 0 4px; line-height: 1.5; }
+.proc-cell .proc-head input { width: auto; display: inline-block; }
 
 /* Nút thao tác trong ô */
 .row-actions { padding: 3px; text-align: center; }

@@ -282,12 +282,21 @@
     // lề + đánh số trang (header phải) + ngắt trang thủ công
     xml = xml.replace(/<pageMargins[^>]*\/>/, '<pageMargins left="0" right="0" top="0.5" bottom="0.2" header="0.3" footer="0"/>');
     const headerFooter = '<headerFooter><oddHeader>&amp;R&amp;&quot;Arial&quot;&amp;10&amp;P/&amp;N</oddHeader></headerFooter>';
-    let rowBreaks = '';
-    if (breaks.length) {
-      rowBreaks = `<rowBreaks count="${breaks.length}" manualBreakCount="${breaks.length}">` +
-        breaks.map((r) => `<brk id="${r}" max="16383" man="1"/>`).join('') + '</rowBreaks>';
+    // Template ĐÃ CÓ sẵn 1 thẻ <headerFooter/>; phải THAY THẾ (không chèn thêm),
+    // nếu không sẽ trùng 2 thẻ -> Excel báo "We found a problem with content".
+    if (/<headerFooter[^>]*\/>/.test(xml)) {
+      xml = xml.replace(/<headerFooter[^>]*\/>/, headerFooter);
+    } else if (/<headerFooter[\s\S]*?<\/headerFooter>/.test(xml)) {
+      xml = xml.replace(/<headerFooter[\s\S]*?<\/headerFooter>/, headerFooter);
+    } else {
+      xml = xml.replace(/(<pageSetup[^>]*\/>)/, `$1${headerFooter}`);
     }
-    xml = xml.replace(/(<pageSetup[^>]*\/>)/, `$1${headerFooter}${rowBreaks}`);
+    // rowBreaks phải đứng NGAY SAU headerFooter (đúng thứ tự schema worksheet)
+    if (breaks.length) {
+      const rowBreaks = `<rowBreaks count="${breaks.length}" manualBreakCount="${breaks.length}">` +
+        breaks.map((r) => `<brk id="${r}" max="16383" man="1"/>`).join('') + '</rowBreaks>';
+      xml = xml.replace(/(<\/headerFooter>)/, `$1${rowBreaks}`);
+    }
 
     files[SHEET] = enc.encode(xml);
 
