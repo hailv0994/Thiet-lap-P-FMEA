@@ -200,6 +200,44 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
 .btn-light { background: #fff; color: var(--ink); border-color: #bdbdbd; }
 .btn-light:hover { background: var(--head); }
 
+/* Nút AI trong ô */
+.ai-btn {
+  cursor: pointer; border: 1px solid #b9a4e3; background: #f3eefc; color: #5b3aa6;
+  border-radius: 4px; font-size: 10.5px; padding: 1px 5px; margin-top: 3px; line-height: 1.4;
+}
+.ai-btn:hover { background: #e7dbfa; }
+.ai-btn:disabled { opacity: .6; cursor: default; }
+
+/* Modal bối cảnh AI */
+.modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 200;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.modal[hidden] { display: none; }
+.modal-box {
+  background: #fff; border-radius: 10px; width: min(680px, 96vw); max-height: 92vh;
+  display: flex; flex-direction: column; box-shadow: 0 12px 40px rgba(0,0,0,.3);
+}
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px; border-bottom: 1px solid var(--line);
+}
+.modal-head h3 { margin: 0; font-size: 15px; }
+.modal-close { border: none; background: none; font-size: 18px; cursor: pointer; color: var(--muted); }
+.modal-body { padding: 14px 18px; overflow-y: auto; }
+.modal-body .ctx-key { display: block; font-weight: 600; font-size: 13px; }
+.modal-body .ctx-key input { width: 100%; margin-top: 4px; }
+.ctx-grid { display: grid; gap: 10px; margin-top: 8px; }
+.ctx-grid label { display: block; font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
+.ctx-grid textarea {
+  width: 100%; margin-top: 3px; border: 1px solid var(--line-strong); border-radius: 5px;
+  padding: 6px; font-family: inherit; font-size: 12.5px; resize: vertical;
+}
+.modal-foot {
+  display: flex; gap: 10px; justify-content: flex-end;
+  padding: 12px 18px; border-top: 1px solid var(--line);
+}
+
 /* thông báo nhỏ */
 .flash {
   position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);

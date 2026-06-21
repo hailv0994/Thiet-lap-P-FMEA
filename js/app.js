@@ -15,6 +15,8 @@
   let workbook = null;               // workbook CP đang mở
   const LS_PROJECTS = 'pfmea_projects_v1';
   const LS_AUTOSAVE = 'pfmea_autosave_v1'; // tự lưu phiên làm việc (meta + nội dung)
+  const LS_GEMINI_KEY = 'pfmea_gemini_key_v1';
+  const LS_CONTEXT = 'pfmea_context_v1';   // bối cảnh AI theo bộ phận
 
   const $ = (s) => document.querySelector(s);
   const esc = (s) => (s == null ? '' : String(s))
@@ -143,12 +145,16 @@
       </div>`;
   }
 
+  // Nút AI hỗ trợ phân tích cho 1 ô
+  const aiBtn = (field) => `<button class="ai-btn" data-action="ai" data-ai-field="${field}" title="AI hỗ trợ phân tích">✨ AI</button>`;
+
   function effectCellHTML(p, r) {
     const idx = findSeverityIdx(r);
     const chosen = !!r.effectStdText;
     return `<td class="auto" rowspan="@RS@" data-proc="${p.id}" data-req="${r.id}">
       <div class="effect-cell">
         <textarea data-field="effectAnalysis" rows="2" placeholder="① Tự phân tích ảnh hưởng…">${esc(r.effectAnalysis)}</textarea>
+        ${aiBtn('effectAnalysis')}
         <div class="effect-std" data-proc="${p.id}" data-req="${r.id}">
           <div class="std-pick"${chosen ? ' style="display:none"' : ''}>
             <div class="effect-arrow">=&gt; (② chọn theo tiêu chuẩn đánh giá S)</div>
@@ -168,15 +174,16 @@
       <div class="detect-cell">
         <div class="detect-label">① Phát hiện ra nguyên nhân (tự phân tích):</div>
         <textarea data-field="detectCause" rows="2" placeholder="…">${esc(c.detectCause)}</textarea>
+        ${aiBtn('detectCause')}
         <div class="detect-label">② Phát hiện ra dạng hỏng hóc (tự động từ CP):</div>
         <div class="detect-auto" contenteditable="true" data-field="detectFailureAuto"
              data-proc="${p.id}" data-req="${r.id}">${esc(r.detectFailureAuto)}</div>
       </div></td>`;
   }
 
-  function txtTD(p, r, c, field, ph) {
+  function txtTD(p, r, c, field, ph, ai) {
     return `<td data-proc="${p.id}" data-req="${r.id}" data-cause="${c.id}">
-      <div class="cell-edit" contenteditable="true" data-field="${field}" data-ph="${ph || ''}">${esc(c[field])}</div></td>`;
+      <div class="cell-edit" contenteditable="true" data-field="${field}" data-ph="${ph || ''}">${esc(c[field])}</div>${ai ? aiBtn(field) : ''}</td>`;
   }
 
   function numTD(p, r, c, field, idAttr) {
@@ -229,6 +236,7 @@
           tr += `<td data-proc="${p.id}" data-req="${r.id}" data-cause="${c.id}">
                    <select class="four-m" data-field="category">${mOpts}</select>
                    <div class="cell-edit" contenteditable="true" data-field="cause" data-ph="Nguyên nhân ${ci + 1}">${esc(c.cause)}</div>
+                   ${aiBtn('cause')}
                    <div class="cause-toolbar">
                      <button class="mini-btn" data-action="add-cause">＋ NN</button>
                      ${rs > 1 ? '<button class="mini-btn danger" data-action="del-cause">✕ NN</button>' : ''}
@@ -238,7 +246,7 @@
           // H tần suất O
           tr += numTD(p, r, c, 'occurrence');
           // I dự phòng
-          tr += txtTD(p, r, c, 'prevention', 'Quản lý dự phòng (tự phân tích)');
+          tr += txtTD(p, r, c, 'prevention', 'Quản lý dự phòng (tự phân tích)', true);
           // J phát hiện (2 ý)
           tr += detectCellHTML(p, r, c);
           // K phát hiện D
@@ -351,6 +359,7 @@
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const action = btn.dataset.action;
+    if (action === 'ai') { onAIClick(btn); return; }
     const { pid, rid, cid } = dataset(btn);
 
     if (action === 'edit-effect') {
@@ -709,6 +718,127 @@
     flashTimer = setTimeout(() => el.classList.remove('show'), 2200);
   }
 
+  // ============================ AI (Gemini) ========================
+  function readContexts() {
+    try { return JSON.parse(localStorage.getItem(LS_CONTEXT) || '{}'); } catch (e) { return {}; }
+  }
+  function ctxKeyName() { return (state.meta.dept || '').trim() || '(chung)'; }
+  function getContext() { return readContexts()[ctxKeyName()] || {}; }
+  function contextText() {
+    const c = getContext();
+    const parts = [];
+    if (c.dept) parts.push('- Bộ phận sản xuất: ' + c.dept);
+    if (c.product) parts.push('- Sản phẩm/loại giảm xóc: ' + c.product);
+    if (c.machine) parts.push('- Máy móc thiết bị: ' + c.machine);
+    if (c.process) parts.push('- Quy trình gia công: ' + c.process);
+    if (c.other) parts.push('- Thông tin khác: ' + c.other);
+    return parts.join('\n');
+  }
+  const getGeminiKey = () => (localStorage.getItem(LS_GEMINI_KEY) || '').trim();
+
+  // ----- Modal bối cảnh -----
+  function openAIModal() {
+    $('#ctxDeptLabel').textContent = 'Bối cảnh cho bộ phận: ' + ctxKeyName() + ' (đổi Bộ phận để nhập cho bộ phận khác)';
+    $('#aiKey').value = getGeminiKey();
+    const c = getContext();
+    $('#ctxDept').value = c.dept || '';
+    $('#ctxProduct').value = c.product || '';
+    $('#ctxMachine').value = c.machine || '';
+    $('#ctxProcess').value = c.process || '';
+    $('#ctxOther').value = c.other || '';
+    $('#aiModal').hidden = false;
+  }
+  function closeAIModal() { $('#aiModal').hidden = true; }
+  function saveAIContext() {
+    localStorage.setItem(LS_GEMINI_KEY, $('#aiKey').value.trim());
+    const map = readContexts();
+    map[ctxKeyName()] = {
+      dept: $('#ctxDept').value.trim(), product: $('#ctxProduct').value.trim(),
+      machine: $('#ctxMachine').value.trim(), process: $('#ctxProcess').value.trim(),
+      other: $('#ctxOther').value.trim(),
+    };
+    localStorage.setItem(LS_CONTEXT, JSON.stringify(map));
+    closeAIModal();
+    flash('Đã lưu bối cảnh AI cho bộ phận ' + ctxKeyName() + '.');
+  }
+
+  // ----- Gọi Gemini -----
+  async function callGemini(prompt, key) {
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(key);
+    const res = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    });
+    if (!res.ok) {
+      let msg = 'HTTP ' + res.status;
+      try { const e = await res.json(); if (e.error && e.error.message) msg += ' — ' + e.error.message; } catch (_) { /* noop */ }
+      throw new Error(msg);
+    }
+    const data = await res.json();
+    const cand = data && data.candidates && data.candidates[0];
+    const parts = cand && cand.content && cand.content.parts;
+    return (parts || []).map((p) => p.text || '').join('').trim();
+  }
+
+  const AI_ASK = {
+    effectAnalysis: 'Phân tích NGẮN GỌN ẢNH HƯỞNG của dạng hỏng hóc này (đến công đoạn sau, đến sản phẩm, hoặc đến khách hàng/người dùng xe).',
+    cause: 'Đề xuất các NGUYÊN NHÂN tiềm ẩn gây ra dạng hỏng hóc, phân theo 4M (Con người/Máy/Phương pháp/Vật liệu). Liệt kê ngắn gọn theo gạch đầu dòng.',
+    prevention: 'Đề xuất BIỆN PHÁP DỰ PHÒNG (quản lý hiện tại) để NGĂN nguyên nhân xảy ra.',
+    detectCause: 'Đề xuất cách PHÁT HIỆN RA NGUYÊN NHÂN (phương pháp kiểm soát/kiểm tra để sớm phát hiện nguyên nhân).',
+  };
+  function buildPrompt(field, p, r, c) {
+    const ctx = contextText();
+    const L = [];
+    L.push('Bạn là chuyên gia P-FMEA (FMEA công đoạn) trong nhà máy sản xuất GIẢM XÓC XE MÁY.');
+    if (ctx) L.push('Bối cảnh nhà máy/bộ phận:\n' + ctx);
+    L.push('Công đoạn: ' + (p.name || '') + (p.func ? (' — chức năng: ' + p.func) : ''));
+    if (r) {
+      if (r.reqText) L.push('Hạng mục yêu cầu: ' + r.reqText);
+      if (r.failureMode) L.push('Dạng hỏng hóc tiềm ẩn: ' + r.failureMode);
+      if (r.effectStdText) L.push('Ảnh hưởng (theo tiêu chuẩn): ' + r.effectStdText);
+    }
+    if (c && (field === 'prevention' || field === 'detectCause')) {
+      L.push('Nguyên nhân' + (c.category ? (' (' + c.category + ')') : '') + ': ' + (c.cause || '(chưa nêu)'));
+    }
+    L.push('YÊU CẦU: ' + (AI_ASK[field] || ''));
+    L.push('Trả lời bằng TIẾNG VIỆT, ngắn gọn, đi thẳng nội dung chuyên môn, KHÔNG mở đầu/khẳng định thừa, tối đa vài dòng.');
+    return L.join('\n');
+  }
+
+  function applyAIResult(field, pid, rid, cid, text) {
+    text = (text || '').trim();
+    if (!text) return;
+    if (field === 'effectAnalysis') {
+      const r = getReq(pid, rid); if (r) r.effectAnalysis = text;
+    } else {
+      const c = getCause(pid, rid, cid); if (c) c[field] = text;
+    }
+    render();
+    scheduleAutosave();
+  }
+
+  async function onAIClick(btn) {
+    const field = btn.dataset.aiField;
+    const { pid, rid, cid } = dataset(btn);
+    const p = getProc(pid), r = getReq(pid, rid);
+    if (!p || !r) return;
+    const key = getGeminiKey();
+    if (!key) { alert('Chưa có API key Gemini. Hãy bấm "🧠 Bối cảnh AI" để nhập key (lấy free tại aistudio.google.com/apikey).'); openAIModal(); return; }
+    const c = cid ? getCause(pid, rid, cid) : null;
+    const prompt = buildPrompt(field, p, r, c);
+    const old = btn.textContent;
+    btn.disabled = true; btn.textContent = '⏳…';
+    try {
+      const text = await callGemini(prompt, key);
+      if (!text) { alert('AI không trả về nội dung. Thử lại.'); return; }
+      applyAIResult(field, pid, rid, cid, text);
+    } catch (e) {
+      alert('Lỗi gọi AI: ' + e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = old;
+    }
+  }
+
   // ============================ Xuất Excel =========================
   // Giải mã base64 -> Uint8Array (template .xlsx nhúng sẵn)
   function b64ToBytes(b64) {
@@ -798,6 +928,13 @@
     tbody.addEventListener('input', onInput);
     tbody.addEventListener('change', onChange);
     tbody.addEventListener('click', onClick);
+
+    // Modal bối cảnh AI
+    $('#btnAIContext').addEventListener('click', openAIModal);
+    $('#aiModalClose').addEventListener('click', closeAIModal);
+    $('#aiModalCancel').addEventListener('click', closeAIModal);
+    $('#aiCtxSave').addEventListener('click', saveAIContext);
+    $('#aiModal').addEventListener('click', (e) => { if (e.target.id === 'aiModal') closeAIModal(); });
   }
 
   document.addEventListener('DOMContentLoaded', init);
