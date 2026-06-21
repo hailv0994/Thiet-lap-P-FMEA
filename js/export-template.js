@@ -41,7 +41,7 @@
   // 13 (Biện pháp đề xuất) gấp ~2 lần; 3/6/9 (Ảnh hưởng/Nguyên nhân/Dự phòng) giảm ~30%
   const MIN_W = { 1: 16, 2: 12, 3: 11, 6: 10, 7: 7, 9: 8, 10: 16, 13: 30, 14: 10, 15: 10 };
   const MAX_W = { 1: 32, 2: 24, 3: 21, 6: 21, 7: 14, 9: 17, 10: 32, 13: 44, 14: 22, 15: 22 };
-  const ORIG_TOTAL = 190; // tổng độ rộng cột để VỪA khổ A4 ở scale 70% (chừa biên an toàn, không cắt cột)
+  const ORIG_TOTAL = 215; // tổng độ rộng cột để lấp gần đầy bề ngang A4 ở scale 70% (ít lề trắng 2 bên)
 
   // ---- Tính dữ liệu cần ghi từ state ----
   function computeData(state, startRow) {
@@ -121,7 +121,8 @@
 
   const LH = 14.5, PAD = 5; // 1 dòng Arial 10pt + đệm
   function cellLines(text, col, widths) {
-    const cpl = Math.max(4, Math.floor(widths[col] || 8));
+    // Ước lượng số ký tự/dòng hơi DƯ (×0.9) để chiều cao ô rộng rãi -> không cắt chữ
+    const cpl = Math.max(4, Math.floor((widths[col] || 8) * 0.9));
     let lines = 0;
     String(text).split('\n').forEach((seg) => { lines += Math.max(1, Math.ceil(seg.length / cpl)); });
     return Math.max(1, lines);
@@ -156,7 +157,12 @@
       else if (cell.num) need = LH + PAD;
       else need = cellLines(cell.v, +c, widths) * LH + PAD;
       let avail = 0; for (let r = r1; r <= r2; r++) avail += H[r] || 15;
-      if (need > avail) H[r1] = clampH((H[r1] || 15) + (need - avail));
+      // CHIA ĐỀU phần thiếu ra các hàng của ô gộp (tránh dồn 1 hàng -> chạm trần
+      // 409pt của Excel làm CẮT CHỮ ở cột đầu khi nội dung dài).
+      if (need > avail) {
+        const extra = (need - avail) / (r2 - r1 + 1);
+        for (let r = r1; r <= r2; r++) H[r] = clampH((H[r] || 15) + extra);
+      }
     }
   }
 
@@ -320,7 +326,7 @@
     xml = xml.replace(/<cols>[\s\S]*?<\/cols>/, buildColsXml(widths));
 
     // lề + scale in A4 + đánh số trang (vào dòng "Trang ページ") + ngắt trang thủ công
-    xml = xml.replace(/<pageMargins[^>]*\/>/, '<pageMargins left="0" right="0" top="0.5" bottom="0.2" header="0.3" footer="0"/>');
+    xml = xml.replace(/<pageMargins[^>]*\/>/, '<pageMargins left="0" right="0" top="0.28" bottom="0.15" header="0.1" footer="0"/>');
     // scale 63% -> 70% cho vừa khổ A4; bỏ r:id để scale trong XML có hiệu lực
     xml = xml.replace(/<pageSetup[^>]*\/>/, '<pageSetup paperSize="9" scale="70" orientation="landscape"/>');
     // Số trang in vào ĐÚNG dòng "Trang ページ：" (góc trên phải), đúng từng trang (&P/&N)
