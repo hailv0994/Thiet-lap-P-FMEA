@@ -18,6 +18,7 @@
   const LS_GEMINI_KEY = 'pfmea_gemini_key_v1';
   const LS_GEMINI_MODEL = 'pfmea_gemini_model_v1';
   const LS_CONTEXT = 'pfmea_context_v1';   // bối cảnh AI theo bộ phận
+  const LS_PHRASES = 'pfmea_phrases_v1';   // bộ nhớ câu đã nhập theo cột + bộ phận
 
   const $ = (s) => document.querySelector(s);
   const esc = (s) => (s == null ? '' : String(s))
@@ -194,6 +195,7 @@
   }
 
   function render() {
+    if (aiPop) closeAIPop();
     const tbody = $('#fmea tbody');
     const empty = $('#emptyState');
     if (!state.processes.length) {
@@ -808,13 +810,17 @@
     throw lastErr || new Error('Không gọi được AI.');
   }
 
-  const AI_ASK = {
-    effectAnalysis: 'Phân tích NGẮN GỌN ẢNH HƯỞNG của dạng hỏng hóc này (đến công đoạn sau, đến sản phẩm, hoặc đến khách hàng/người dùng xe).',
-    cause: 'Đề xuất các NGUYÊN NHÂN tiềm ẩn gây ra dạng hỏng hóc, phân theo 4M (Con người/Máy/Phương pháp/Vật liệu). Liệt kê ngắn gọn theo gạch đầu dòng.',
-    prevention: 'Đề xuất BIỆN PHÁP DỰ PHÒNG (quản lý hiện tại) để NGĂN nguyên nhân xảy ra.',
-    detectCause: 'Đề xuất cách PHÁT HIỆN RA NGUYÊN NHÂN (phương pháp kiểm soát/kiểm tra để sớm phát hiện nguyên nhân).',
+  // Mô tả ngắn cho từng cột (để AI gợi ý đúng trọng tâm)
+  const AI_ASK_SHORT = {
+    effectAnalysis: 'ẢNH HƯỞNG của dạng hỏng hóc (đến công đoạn sau / sản phẩm / khách hàng dùng xe)',
+    cause: 'NGUYÊN NHÂN tiềm ẩn gây ra dạng hỏng hóc (theo 4M)',
+    prevention: 'BIỆN PHÁP DỰ PHÒNG để ngăn nguyên nhân xảy ra',
+    detectCause: 'cách PHÁT HIỆN RA NGUYÊN NHÂN (phương pháp kiểm soát/kiểm tra)',
   };
-  function buildPrompt(field, p, r, c) {
+  const FIELD_LABEL = { effectAnalysis: 'Ảnh hưởng', cause: 'Nguyên nhân', prevention: 'Dự phòng', detectCause: 'Phát hiện nguyên nhân' };
+
+  // Yêu cầu AI trả về ~5 mẫu câu ngắn gọn (mỗi câu 1 dòng)
+  function buildSuggestPrompt(field, p, r, c) {
     const ctx = contextText();
     const L = [];
     L.push('Bạn là chuyên gia P-FMEA (FMEA công đoạn) trong nhà máy sản xuất GIẢM XÓC XE MÁY.');
@@ -828,9 +834,14 @@
     if (c && (field === 'prevention' || field === 'detectCause')) {
       L.push('Nguyên nhân' + (c.category ? (' (' + c.category + ')') : '') + ': ' + (c.cause || '(chưa nêu)'));
     }
-    L.push('YÊU CẦU: ' + (AI_ASK[field] || ''));
-    L.push('Trả lời bằng TIẾNG VIỆT, ngắn gọn, đi thẳng nội dung chuyên môn, KHÔNG mở đầu/khẳng định thừa, tối đa vài dòng.');
+    L.push('Hãy đưa ra ĐÚNG 5 mẫu câu cho phần: ' + (AI_ASK_SHORT[field] || '') + '.');
+    L.push('Mỗi câu trên 1 DÒNG riêng. NGẮN GỌN, đủ ý logic kỹ thuật, KHÔNG lan man, KHÔNG đánh số, KHÔNG gạch đầu dòng, KHÔNG giải thích thêm. Tiếng Việt.');
     return L.join('\n');
+  }
+  function parseSuggestions(text) {
+    return (text || '').split('\n')
+      .map((s) => s.replace(/^\s*(?:\d+[.)]|[-*•])\s*/, '').trim())
+      .filter(Boolean).slice(0, 8);
   }
 
   function applyAIResult(field, pid, rid, cid, text) {
@@ -845,25 +856,100 @@
     scheduleAutosave();
   }
 
+  // ----- Bộ nhớ câu đã nhập: theo CỘT + BỘ PHẬN -----
+  function readPhrases() { try { return JSON.parse(localStorage.getItem(LS_PHRASES) || '{}'); } catch (e) { return {}; } }
+  const phraseKey = (field) => field + '|' + ctxKeyName();
+  function getSavedPhrases(field) { return readPhrases()[phraseKey(field)] || []; }
+  function savePhrase(field, text) {
+    text = (text || '').replace(/\s+/g, ' ').trim();
+    if (!text || text.length < 2) return;
+    const all = readPhrases(); const k = phraseKey(field); const list = all[k] || [];
+    if (list.some((p) => p.trim().toLowerCase() === text.toLowerCase())) return;
+    list.unshift(text); if (list.length > 50) list.length = 50;
+    all[k] = list; localStorage.setItem(LS_PHRASES, JSON.stringify(all));
+  }
+
+  // ----- Popup gợi ý -----
+  let aiPop = null;
+  function closeAIPop() {
+    if (aiPop) { aiPop.remove(); aiPop = null; document.removeEventListener('mousedown', onPopOutside, true); }
+  }
+  function onPopOutside(e) {
+    if (aiPop && !aiPop.contains(e.target) && !e.target.closest('.ai-btn')) closeAIPop();
+  }
+  function positionPop(pop, btn) {
+    const r = btn.getBoundingClientRect();
+    let left = r.left, top = r.bottom + 4;
+    const pw = 340;
+    if (left + pw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - pw - 8);
+    if (top + 260 > window.innerHeight && r.top - 4 > 260) top = r.top - 264; // lật lên nếu thiếu chỗ
+    pop.style.left = left + 'px'; pop.style.top = top + 'px';
+  }
+  function chooseSuggestion(field, pid, rid, cid, text) {
+    closeAIPop();
+    applyAIResult(field, pid, rid, cid, text); // thay thế nội dung ô
+  }
+
   async function onAIClick(btn) {
     const field = btn.dataset.aiField;
     const { pid, rid, cid } = dataset(btn);
     const p = getProc(pid), r = getReq(pid, rid);
     if (!p || !r) return;
+    closeAIPop();
+
+    aiPop = document.createElement('div');
+    aiPop.className = 'ai-pop';
+    aiPop.innerHTML =
+      `<div class="ai-pop-head">Gợi ý: <b>${esc(FIELD_LABEL[field] || field)}</b><button class="ai-pop-x" title="Đóng">✕</button></div>
+       <div class="ai-pop-scroll">
+         <div class="ai-pop-saved"></div>
+         <div class="ai-pop-ai"><div class="ai-pop-sub">⏳ Đang lấy gợi ý AI…</div></div>
+       </div>
+       <div class="ai-pop-add"><input type="text" placeholder="Tự nhập câu của bạn…" /><button class="btn btn-primary">Dùng</button></div>`;
+    document.body.appendChild(aiPop);
+    positionPop(aiPop, btn);
+
+    // Câu đã lưu (đúng cột + bộ phận)
+    const saved = getSavedPhrases(field);
+    if (saved.length) {
+      aiPop.querySelector('.ai-pop-saved').innerHTML =
+        '<div class="ai-pop-sub">Câu đã lưu (cột này):</div>' +
+        saved.map((s) => `<div class="ai-pop-item" data-text="${esc(s)}">${esc(s)}</div>`).join('');
+    }
+
+    // Sự kiện chọn item
+    aiPop.querySelector('.ai-pop-x').addEventListener('click', closeAIPop);
+    aiPop.querySelector('.ai-pop-scroll').addEventListener('click', (e) => {
+      const it = e.target.closest('.ai-pop-item');
+      if (it) chooseSuggestion(field, pid, rid, cid, it.getAttribute('data-text'));
+    });
+    const inp = aiPop.querySelector('.ai-pop-add input');
+    const doAdd = () => {
+      const v = inp.value.trim(); if (!v) return;
+      savePhrase(field, v);                          // câu tự nhập -> lưu vào bộ nhớ cột
+      chooseSuggestion(field, pid, rid, cid, v);
+    };
+    aiPop.querySelector('.ai-pop-add button').addEventListener('click', doAdd);
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doAdd(); } });
+    setTimeout(() => document.addEventListener('mousedown', onPopOutside, true), 0);
+
+    // Gợi ý AI
+    const aiBox = aiPop.querySelector('.ai-pop-ai');
     const key = getGeminiKey();
-    if (!key) { alert('Chưa có API key Gemini. Hãy bấm "🧠 Bối cảnh AI" để nhập key (lấy free tại aistudio.google.com/apikey).'); openAIModal(); return; }
-    const c = cid ? getCause(pid, rid, cid) : null;
-    const prompt = buildPrompt(field, p, r, c);
-    const old = btn.textContent;
-    btn.disabled = true; btn.textContent = '⏳…';
+    if (!key) {
+      aiBox.innerHTML = '<div class="ai-pop-sub">Chưa có API key — bấm "🧠 Bối cảnh AI" để nhập (vẫn dùng được câu đã lưu / tự nhập).</div>';
+      return;
+    }
     try {
-      const text = await callGemini(prompt, key);
-      if (!text) { alert('AI không trả về nội dung. Thử lại.'); return; }
-      applyAIResult(field, pid, rid, cid, text);
+      const c = cid ? getCause(pid, rid, cid) : null;
+      const text = await callGemini(buildSuggestPrompt(field, p, r, c), key);
+      if (!aiPop) return;
+      const sugs = parseSuggestions(text);
+      aiBox.innerHTML = '<div class="ai-pop-sub">Gợi ý AI:</div>' +
+        (sugs.length ? sugs.map((s) => `<div class="ai-pop-item" data-text="${esc(s)}">${esc(s)}</div>`).join('')
+          : '<div class="ai-pop-sub">(AI không trả về gợi ý)</div>');
     } catch (e) {
-      alert('Lỗi gọi AI: ' + e.message);
-    } finally {
-      btn.disabled = false; btn.textContent = old;
+      if (aiPop) aiBox.innerHTML = '<div class="ai-pop-sub ai-err">Lỗi AI: ' + esc(e.message) + '</div>';
     }
   }
 
@@ -956,6 +1042,13 @@
     tbody.addEventListener('input', onInput);
     tbody.addEventListener('change', onChange);
     tbody.addEventListener('click', onClick);
+    // Tự gõ trực tiếp vào ô -> lưu câu vào bộ nhớ của cột đó (khi rời ô)
+    tbody.addEventListener('focusout', (e) => {
+      const el = e.target; const field = el.dataset && el.dataset.field;
+      if (field === 'effectAnalysis' || field === 'cause' || field === 'prevention' || field === 'detectCause') {
+        savePhrase(field, (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') ? el.value : el.textContent);
+      }
+    });
 
     // Modal bối cảnh AI
     $('#btnAIContext').addEventListener('click', openAIModal);
