@@ -95,6 +95,15 @@
         <label class="ctx-key">API key Google Gemini (miễn phí):
           <input type="password" id="aiKey" placeholder="dán API key từ Google AI Studio..." />
         </label>
+        <label class="ctx-key">Model AI:
+          <select id="aiModel">
+            <option value="">Tự động (thử lần lượt các model free)</option>
+            <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+            <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+            <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
+            <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+          </select>
+        </label>
         <p class="muted">Lấy key miễn phí tại <b>aistudio.google.com/apikey</b>. Key lưu tại trình duyệt của bạn (chưa chia sẻ).</p>
         <p class="muted" id="ctxDeptLabel"></p>
         <div class="ctx-grid">

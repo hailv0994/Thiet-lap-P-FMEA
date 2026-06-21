@@ -16,6 +16,7 @@
   const LS_PROJECTS = 'pfmea_projects_v1';
   const LS_AUTOSAVE = 'pfmea_autosave_v1'; // tự lưu phiên làm việc (meta + nội dung)
   const LS_GEMINI_KEY = 'pfmea_gemini_key_v1';
+  const LS_GEMINI_MODEL = 'pfmea_gemini_model_v1';
   const LS_CONTEXT = 'pfmea_context_v1';   // bối cảnh AI theo bộ phận
 
   const $ = (s) => document.querySelector(s);
@@ -735,11 +736,13 @@
     return parts.join('\n');
   }
   const getGeminiKey = () => (localStorage.getItem(LS_GEMINI_KEY) || '').trim();
+  const getGeminiModel = () => (localStorage.getItem(LS_GEMINI_MODEL) || '').trim();
 
   // ----- Modal bối cảnh -----
   function openAIModal() {
     $('#ctxDeptLabel').textContent = 'Bối cảnh cho bộ phận: ' + ctxKeyName() + ' (đổi Bộ phận để nhập cho bộ phận khác)';
     $('#aiKey').value = getGeminiKey();
+    $('#aiModel').value = getGeminiModel();
     const c = getContext();
     $('#ctxDept').value = c.dept || '';
     $('#ctxProduct').value = c.product || '';
@@ -751,6 +754,7 @@
   function closeAIModal() { $('#aiModal').hidden = true; }
   function saveAIContext() {
     localStorage.setItem(LS_GEMINI_KEY, $('#aiKey').value.trim());
+    localStorage.setItem(LS_GEMINI_MODEL, $('#aiModel').value);
     const map = readContexts();
     map[ctxKeyName()] = {
       dept: $('#ctxDept').value.trim(), product: $('#ctxProduct').value.trim(),
@@ -762,22 +766,46 @@
     flash('Đã lưu bối cảnh AI cho bộ phận ' + ctxKeyName() + '.');
   }
 
-  // ----- Gọi Gemini -----
-  async function callGemini(prompt, key) {
-    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(key);
+  // ----- Gọi Gemini (1 model) -----
+  async function callGeminiOnce(prompt, key, model) {
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key);
     const res = await fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
     });
     if (!res.ok) {
-      let msg = 'HTTP ' + res.status;
-      try { const e = await res.json(); if (e.error && e.error.message) msg += ' — ' + e.error.message; } catch (_) { /* noop */ }
-      throw new Error(msg);
+      let detail = '';
+      try { const e = await res.json(); if (e.error && e.error.message) detail = e.error.message; } catch (_) { /* noop */ }
+      const err = new Error('HTTP ' + res.status + (detail ? (' — ' + detail) : ''));
+      err.status = res.status;
+      err.quotaZero = /limit:\s*0/i.test(detail);          // model không có hạn mức free
+      err.notFound = res.status === 404 || /not found|NOT_FOUND/i.test(detail);
+      throw err;
     }
     const data = await res.json();
     const cand = data && data.candidates && data.candidates[0];
     const parts = cand && cand.content && cand.content.parts;
     return (parts || []).map((p) => p.text || '').join('').trim();
+  }
+  // Gọi Gemini: nếu người dùng chọn model thì dùng đúng model đó; nếu để "Tự động"
+  // thì thử lần lượt cho tới khi 1 model có hạn mức free hoạt động.
+  async function callGemini(prompt, key) {
+    const chosen = getGeminiModel();
+    const models = chosen ? [chosen]
+      : ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash'];
+    let lastErr;
+    for (const m of models) {
+      try { return await callGeminiOnce(prompt, key, m); }
+      catch (e) {
+        lastErr = e;
+        if (e.quotaZero || e.notFound) continue;  // model này không khả dụng -> thử model khác
+        throw e;                                   // lỗi khác (rate limit thật, key sai...) -> dừng
+      }
+    }
+    if (lastErr && lastErr.quotaZero) {
+      throw new Error('Các model đều báo hết hạn mức miễn phí (limit 0). API key của bạn có thể CHƯA bật gói free — thường do key tạo từ Google Cloud có bật thanh toán, hoặc khu vực chưa hỗ trợ. Hãy tạo key MỚI tại aistudio.google.com/apikey (tài khoản Google cá nhân, không bật billing) rồi thử lại.');
+    }
+    throw lastErr || new Error('Không gọi được AI.');
   }
 
   const AI_ASK = {
