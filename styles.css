@@ -31,6 +31,8 @@ body {
 }
 .topbar h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: .3px; }
 .subtitle { font-size: 12px; color: #c7c7c7; margin-left: 12px; }
+.cloud-dot { width: 10px; height: 10px; border-radius: 50%; background: #9a9a9a; display: inline-block; margin-right: 6px; vertical-align: middle; }
+.cloud-dot.online { background: #34c759; box-shadow: 0 0 0 2px rgba(52,199,89,.25); }
 
 /* ---------- Toolbar ---------- */
 .toolbar {

@@ -20,6 +20,11 @@
   const LS_CONTEXT = 'pfmea_context_v1';   // bối cảnh AI theo bộ phận
   const LS_PHRASES = 'pfmea_phrases_v1';   // bộ nhớ câu đã nhập theo cột + bộ phận
 
+  // ----- Cấu hình đồng bộ đám mây (Supabase) — anon key là khóa CÔNG KHAI -----
+  const SB_URL = 'https://iccrgjtkaizosocrxsql.supabase.co';
+  const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImljY3JnanRrYWl6b3NvY3J4c3FsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwMTcyNzEsImV4cCI6MjA5NzU5MzI3MX0.oOHGGZOfteIF7he7u8IKaIejLfDNDCLG1sa3uqQftfc';
+  let sb = null;
+
   const $ = (s) => document.querySelector(s);
   const esc = (s) => (s == null ? '' : String(s))
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -592,9 +597,10 @@
     const key = projectKey(state.meta);
     map[key] = { meta: state.meta, processes: state.processes, savedAt: new Date().toISOString() };
     writeProjects(map);
+    cloudPushProject(key, map[key]);   // đẩy lên dữ liệu chung
     refreshProjectUI();
     $('#projSelect').value = key;
-    flash('Đã lưu: ' + key);
+    flash('Đã lưu: ' + key + (sb ? ' (đã đồng bộ chung)' : ''));
   }
 
   function onPickProject() {
@@ -638,8 +644,11 @@
       try {
         const data = JSON.parse(ev.target.result);
         const map = readProjects();
-        Object.assign(map, data.projects || {});
+        const incoming = data.projects || {};
+        Object.assign(map, incoming);
         writeProjects(map);
+        // Đẩy các dự án vừa nạp lên DB chung (để chuyển model base cũ lên web cho cả nhóm)
+        Object.keys(incoming).forEach((k) => cloudPushProject(k, incoming[k]));
         // Khôi phục luôn NỘI DUNG đang làm dở (current) nếu có — để mang dữ liệu
         // sang file mới mà không mất gì.
         const cur = data.current;
@@ -743,6 +752,7 @@
   // ----- Modal bối cảnh -----
   function openAIModal() {
     $('#ctxDeptLabel').textContent = 'Bối cảnh cho bộ phận: ' + ctxKeyName() + ' (đổi Bộ phận để nhập cho bộ phận khác)';
+    cloudPullContexts(); cloudPullPhrases();   // làm tươi dữ liệu chung khi mở
     $('#aiKey').value = getGeminiKey();
     $('#aiModel').value = getGeminiModel();
     const c = getContext();
@@ -764,8 +774,9 @@
       other: $('#ctxOther').value.trim(),
     };
     localStorage.setItem(LS_CONTEXT, JSON.stringify(map));
+    cloudPushContext(ctxKeyName(), map[ctxKeyName()]);   // đẩy lên chung
     closeAIModal();
-    flash('Đã lưu bối cảnh AI cho bộ phận ' + ctxKeyName() + '.');
+    flash('Đã lưu bối cảnh AI cho bộ phận ' + ctxKeyName() + (sb ? ' (đã đồng bộ chung)' : '') + '.');
   }
 
   // ----- Gọi Gemini (1 model) -----
@@ -867,6 +878,7 @@
     if (list.some((p) => p.trim().toLowerCase() === text.toLowerCase())) return;
     list.unshift(text); if (list.length > 50) list.length = 50;
     all[k] = list; localStorage.setItem(LS_PHRASES, JSON.stringify(all));
+    cloudPushPhrase(field, ctxKeyName(), text);   // đẩy câu mới lên chung
   }
 
   // ----- Popup gợi ý -----
@@ -988,6 +1000,74 @@
 
   function onExportClick() { readMetaInputs(); exportXlsx(); }
 
+  // ======================= Đồng bộ đám mây (Supabase) =======================
+  function initCloud() {
+    try {
+      if (window.supabase && SB_URL && SB_KEY) sb = window.supabase.createClient(SB_URL, SB_KEY);
+    } catch (e) { sb = null; }
+    if (sb) cloudStatus('online');
+  }
+  function cloudStatus(state) {
+    const el = $('#cloudDot'); if (!el) return;
+    el.className = 'cloud-dot ' + state;
+    el.title = state === 'online' ? 'Đã kết nối dữ liệu chung' : 'Chưa kết nối dữ liệu chung (đang dùng cục bộ)';
+  }
+
+  // --- Kéo dữ liệu chung về (gộp vào localStorage) ---
+  async function cloudPullProjects() {
+    if (!sb) return;
+    try {
+      const { data, error } = await sb.from('projects').select('key,meta,processes,updated_at');
+      if (error || !data) return;
+      const map = readProjects();
+      data.forEach((r) => { map[r.key] = { meta: r.meta, processes: r.processes, savedAt: r.updated_at }; });
+      writeProjects(map); refreshProjectUI();
+    } catch (e) { /* offline */ }
+  }
+  async function cloudPullContexts() {
+    if (!sb) return;
+    try {
+      const { data, error } = await sb.from('contexts').select('dept,data');
+      if (error || !data) return;
+      const map = readContexts();
+      data.forEach((r) => { if (r.data) map[r.dept] = r.data; });
+      localStorage.setItem(LS_CONTEXT, JSON.stringify(map));
+    } catch (e) { /* offline */ }
+  }
+  async function cloudPullPhrases() {
+    if (!sb) return;
+    try {
+      const { data, error } = await sb.from('phrases').select('field,dept,body');
+      if (error || !data) return;
+      const all = readPhrases();
+      data.forEach((r) => {
+        const k = r.field + '|' + r.dept; const list = all[k] || [];
+        if (r.body && !list.some((p) => p.trim().toLowerCase() === r.body.trim().toLowerCase())) list.push(r.body);
+        all[k] = list;
+      });
+      localStorage.setItem(LS_PHRASES, JSON.stringify(all));
+    } catch (e) { /* offline */ }
+  }
+
+  // --- Đẩy thay đổi lên dữ liệu chung (fire-and-forget) ---
+  function cloudPushProject(key, proj) {
+    if (!sb || !key || !proj) return;
+    try {
+      sb.from('projects').upsert({ key, meta: proj.meta, processes: proj.processes, updated_at: new Date().toISOString() })
+        .then(() => {}, () => {});
+    } catch (e) { /* noop */ }
+  }
+  function cloudPushContext(dept, data) {
+    if (!sb || !dept) return;
+    try { sb.from('contexts').upsert({ dept, data, updated_at: new Date().toISOString() }).then(() => {}, () => {}); }
+    catch (e) { /* noop */ }
+  }
+  function cloudPushPhrase(field, dept, body) {
+    if (!sb || !field || !body) return;
+    try { sb.from('phrases').insert({ field, dept, body }).then(() => {}, () => {}); } // unique -> tự bỏ trùng
+    catch (e) { /* noop */ }
+  }
+
   // ============================ Khởi tạo ===========================
   function init() {
     buildHeader();
@@ -1056,6 +1136,11 @@
     $('#aiModalCancel').addEventListener('click', closeAIModal);
     $('#aiCtxSave').addEventListener('click', saveAIContext);
     $('#aiModal').addEventListener('click', (e) => { if (e.target.id === 'aiModal') closeAIModal(); });
+
+    // Đồng bộ đám mây: kết nối + kéo dữ liệu chung về; làm tươi khi mở dropdown dự án
+    initCloud();
+    cloudPullProjects(); cloudPullContexts(); cloudPullPhrases();
+    $('#projSelect').addEventListener('focus', cloudPullProjects);
   }
 
   document.addEventListener('DOMContentLoaded', init);
