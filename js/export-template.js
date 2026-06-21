@@ -38,10 +38,10 @@
   const TEXT_COLS = [1, 2, 3, 6, 7, 9, 10, 13, 14, 15];
   // Cột số canh giữa: 4(S) và 16(S sau) rộng hơn để tiêu đề "nghiêm trọng" không vỡ chữ
   const FIXED_W = { 4: 7, 5: 6, 8: 5, 11: 5, 12: 6, 16: 7, 17: 5, 18: 5, 19: 5 };
-  // 13 (Biện pháp đề xuất) gấp ~2 lần; 3/6/9 (Ảnh hưởng/Nguyên nhân/Dự phòng) giảm ~30%
-  const MIN_W = { 1: 16, 2: 12, 3: 11, 6: 10, 7: 7, 9: 8, 10: 16, 13: 30, 14: 10, 15: 10 };
-  const MAX_W = { 1: 32, 2: 24, 3: 21, 6: 21, 7: 14, 9: 17, 10: 32, 13: 44, 14: 22, 15: 22 };
-  const ORIG_TOTAL = 215; // tổng độ rộng cột để lấp gần đầy bề ngang A4 ở scale 70% (ít lề trắng 2 bên)
+  // 13 (Biện pháp) -40%; 6 (Nguyên nhân) +30%, 9 (Dự phòng) +25%
+  const MIN_W = { 1: 16, 2: 12, 3: 11, 6: 13, 7: 7, 9: 10, 10: 16, 13: 18, 14: 10, 15: 10 };
+  const MAX_W = { 1: 32, 2: 24, 3: 21, 6: 26, 7: 14, 9: 21, 10: 32, 13: 26, 14: 22, 15: 22 };
+  const ORIG_TOTAL = 200; // tỉ lệ cột tương đối (Excel TỰ CO vừa 1 trang ngang nên không lo tràn)
 
   // ---- Tính dữ liệu cần ghi từ state ----
   function computeData(state, startRow) {
@@ -119,10 +119,9 @@
     return W;
   }
 
-  const LH = 14.5, PAD = 5; // 1 dòng Arial 10pt + đệm
+  const LH = 13, PAD = 13; // chiều cao 1 dòng Arial 10pt; đệm = ĐÚNG 1 dòng (ít khoảng trống thừa)
   function cellLines(text, col, widths) {
-    // Ước lượng số ký tự/dòng hơi DƯ (×0.9) để chiều cao ô rộng rãi -> không cắt chữ
-    const cpl = Math.max(4, Math.floor((widths[col] || 8) * 0.9));
+    const cpl = Math.max(4, Math.floor((widths[col] || 8) * 0.95));
     let lines = 0;
     String(text).split('\n').forEach((seg) => { lines += Math.max(1, Math.ceil(seg.length / cpl)); });
     return Math.max(1, lines);
@@ -167,7 +166,7 @@
   }
 
   // ---- Ngắt trang + tách ô gộp tại ranh giới trang, lặp nội dung ----
-  const PAGE_CAP = 584; // chiều cao nội dung (pt) mỗi trang A4 ở scale 70% (ít dòng hơn so với 63%)
+  const PAGE_CAP = 600; // chiều cao nội dung (pt) mỗi trang A4 (ước theo scale tự co ~70%)
   function paginate(H, startRow, lastRow) {
     const segments = []; const breaks = [];
     let pageStart = startRow, cum = 0;
@@ -327,8 +326,16 @@
 
     // lề + scale in A4 + đánh số trang (vào dòng "Trang ページ") + ngắt trang thủ công
     xml = xml.replace(/<pageMargins[^>]*\/>/, '<pageMargins left="0" right="0" top="0.28" bottom="0.15" header="0.1" footer="0"/>');
-    // scale 63% -> 70% cho vừa khổ A4; bỏ r:id để scale trong XML có hiệu lực
-    xml = xml.replace(/<pageSetup[^>]*\/>/, '<pageSetup paperSize="9" scale="70" orientation="landscape"/>');
+    // TỰ CO vừa 1 trang ngang: Excel tự chọn % để lấp đầy bề ngang A4, không thiếu cột
+    xml = xml.replace(/<pageSetup[^>]*\/>/, '<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>');
+    // fitToWidth chỉ có hiệu lực khi sheetPr có <pageSetUpPr fitToPage="1"/>
+    if (/<pageSetUpPr/.test(xml)) {
+      xml = xml.replace(/<pageSetUpPr([^>]*?)\s*\/>/, (m, a) => '<pageSetUpPr' + a.replace(/\s*fitToPage="\d"/, '') + ' fitToPage="1"/>');
+    } else if (/<sheetPr[^>]*\/>/.test(xml)) {
+      xml = xml.replace(/<sheetPr([^>]*)\/>/, '<sheetPr$1><pageSetUpPr fitToPage="1"/></sheetPr>');
+    } else if (/<sheetPr[^>]*>[\s\S]*?<\/sheetPr>/.test(xml)) {
+      xml = xml.replace(/<\/sheetPr>/, '<pageSetUpPr fitToPage="1"/></sheetPr>');
+    }
     // Số trang in vào ĐÚNG dòng "Trang ページ：" (góc trên phải), đúng từng trang (&P/&N)
     const headerFooter = '<headerFooter><oddHeader>&amp;R&amp;&quot;Arial&quot;&amp;10Trang ページ： &amp;P／&amp;N</oddHeader></headerFooter>';
     // Template ĐÃ CÓ sẵn 1 thẻ <headerFooter/>; phải THAY THẾ (không chèn thêm),
