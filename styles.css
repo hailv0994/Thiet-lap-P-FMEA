@@ -274,3 +274,151 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
   font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 100;
 }
 .flash.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ============================================================
+   Tab navigation
+   ============================================================ */
+.tab-nav {
+  display: flex; gap: 0; background: var(--panel);
+  border-bottom: 2px solid var(--line); padding: 0 18px;
+  position: sticky; top: 46px; z-index: 40;
+}
+.tab-btn {
+  cursor: pointer; border: none; background: transparent;
+  padding: 10px 20px; font-size: 13px; font-weight: 600;
+  color: var(--muted); border-bottom: 3px solid transparent;
+  margin-bottom: -2px; transition: color .15s, border-color .15s;
+  font-family: inherit;
+}
+.tab-btn:hover { color: var(--ink); }
+.tab-btn.active { color: var(--ink); border-bottom-color: var(--ink); }
+.tab-panel { display: block; }
+.tab-panel[hidden] { display: none; }
+
+/* ============================================================
+   Tab Hướng dẫn — guide content
+   ============================================================ */
+.guide-wrap { background: var(--bg); min-height: calc(100vh - 90px); }
+.guide-container {
+  max-width: 960px; margin: 0 auto; padding: 32px 24px 80px;
+}
+.guide-main-title {
+  font-size: 22px; font-weight: 700; margin: 0 0 8px;
+  color: var(--ink);
+}
+.guide-intro {
+  font-size: 14px; color: var(--ink-soft); margin: 0 0 32px;
+  line-height: 1.7;
+}
+
+.guide-section {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 24px 28px; margin-bottom: 20px;
+}
+.guide-h3 {
+  font-size: 16px; font-weight: 700; margin: 0 0 14px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+.guide-h4 {
+  font-size: 13.5px; font-weight: 700; margin: 18px 0 10px;
+  color: var(--ink-soft);
+}
+.guide-section p { font-size: 13.5px; color: var(--ink-soft); line-height: 1.7; margin: 0 0 14px; }
+
+/* Cards row (mục đích / thời điểm / đầu vào) */
+.guide-card-row {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px; margin-top: 14px;
+}
+.guide-card {
+  background: var(--head-2); border: 1px solid var(--line);
+  border-radius: 6px; padding: 16px;
+}
+.guide-card-icon { font-size: 22px; margin-bottom: 6px; }
+.guide-card-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--ink); }
+.guide-card ul { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.75; }
+
+/* Bảng trong guide */
+.guide-table {
+  width: 100%; border-collapse: collapse; font-size: 12.5px;
+  margin-top: 8px;
+}
+.guide-table th {
+  background: var(--head); text-align: left; padding: 8px 10px;
+  border: 1px solid var(--line-strong); font-weight: 600; font-size: 12px;
+}
+.guide-table td {
+  padding: 7px 10px; border: 1px solid var(--line);
+  vertical-align: top; line-height: 1.55; color: var(--ink-soft);
+}
+.guide-row-group td {
+  background: var(--head-2); font-size: 12px; padding: 5px 10px;
+  color: var(--ink);
+}
+.col-tag {
+  font-weight: 700; font-size: 13px; color: var(--ink);
+  text-align: center; width: 36px;
+}
+
+/* Bảng S — rank màu */
+.guide-s-table { margin-top: 8px; }
+.s-rank { font-weight: 700; text-align: center; font-size: 14px; width: 60px; }
+.s-10, .s-9  { color: #c00; background: #fff5f5; }
+.s-8,  .s-7  { color: #c55; background: #fff8f5; }
+.s-6,  .s-5  { color: #a60; background: #fffbf0; }
+.s-4,  .s-3, .s-2 { color: #670; background: #f9fbf3; }
+.s-1          { color: #060; background: #f3fbf3; }
+
+/* RPN formula */
+.guide-rpn-formula {
+  display: flex; align-items: center; gap: 12px;
+  margin: 16px 0; flex-wrap: wrap;
+}
+.rpn-box {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 52px; height: 52px; border: 2px solid var(--line-strong);
+  border-radius: 8px; font-size: 22px; font-weight: 700;
+  background: var(--head-2); color: var(--ink);
+}
+.rpn-result { background: var(--ink); color: #fff; border-color: var(--ink); }
+.rpn-op { font-size: 24px; color: var(--muted); font-weight: 300; }
+.guide-note {
+  margin: 12px 0 0; padding: 10px 14px;
+  background: #fffbe6; border: 1px solid #e8d96a; border-radius: 5px;
+  font-size: 12.5px; color: var(--ink-soft); line-height: 1.6;
+}
+
+/* 4M cards */
+.guide-4m-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px; margin-top: 14px;
+}
+.guide-4m-card {
+  border-radius: 7px; padding: 16px; border: 1px solid var(--line);
+  font-size: 12.5px; line-height: 1.6;
+}
+.m-man     { background: #f0f7ff; border-color: #b8d4f0; }
+.m-machine { background: #f5f0ff; border-color: #cbbff0; }
+.m-method  { background: #f0fff4; border-color: #b0dfc0; }
+.m-material{ background: #fff8f0; border-color: #f0d0a0; }
+.m-title { font-size: 13.5px; font-weight: 700; margin-bottom: 8px; color: var(--ink); }
+.guide-4m-card p { margin: 0 0 8px; color: var(--ink-soft); }
+.m-examples, .m-control { font-size: 12px; color: var(--ink-soft); margin-top: 6px; }
+
+/* Bước quy trình */
+.guide-steps {
+  list-style: none; padding: 0; margin: 14px 0 0; display: flex; flex-direction: column; gap: 12px;
+}
+.guide-steps li {
+  display: flex; gap: 14px; align-items: flex-start;
+  font-size: 13px; line-height: 1.65; color: var(--ink-soft);
+}
+.guide-steps li ul { margin: 6px 0 0; padding-left: 18px; }
+.guide-steps li strong { color: var(--ink); }
+.step-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 28px; height: 28px; border-radius: 50%;
+  background: var(--ink); color: #fff; font-size: 13px; font-weight: 700;
+  flex-shrink: 0; margin-top: 1px;
+}

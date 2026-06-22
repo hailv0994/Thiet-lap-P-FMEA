@@ -1141,6 +1141,17 @@
     initCloud();
     cloudPullProjects(); cloudPullContexts(); cloudPullPhrases();
     $('#projSelect').addEventListener('focus', cloudPullProjects);
+
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var targetId = this.dataset.tab;
+        document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+        this.classList.add('active');
+        document.querySelectorAll('.tab-panel').forEach(function(p) { p.hidden = true; });
+        document.getElementById(targetId).hidden = false;
+      });
+    });
   }
 
   document.addEventListener('DOMContentLoaded', init);
