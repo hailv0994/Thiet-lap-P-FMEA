@@ -1152,6 +1152,299 @@
         document.getElementById(targetId).hidden = false;
       });
     });
+
+    // Dựng tab Hướng dẫn
+    setupGuide();
+  }
+
+  /* =====================================================================
+   * TAB HƯỚNG DẪN — dựng động theo từng cột P-FMEA
+   * ===================================================================== */
+
+  // Nhãn từng cột (khớp với buildHeader) + ví dụ minh họa
+  const G_COLS = {
+    A: { vi: 'Quy trình / Bước /\nChức năng\n(Hạng mục yêu cầu)', jp: 'プロセス ステップ/機能', ex: '<b>1. Kiểm tra phôi đầu vào</b>\n• Bước 1: Đo đường kính ngoài\n<i>Yêu cầu:</i> Ø20 ±0,1 mm' },
+    B: { vi: 'Dạng hỏng hóc\ntiềm ẩn', jp: '潜在的故障モード', ex: 'Đường kính ngoài\nngoài dung sai\n(Ø < 19,9 hoặc > 20,1)' },
+    C: { vi: 'Ảnh hưởng của\nhỏng hóc tiềm ẩn', jp: '潜在的故障影響', ex: '① Không lắp được vào\nthân giảm xóc ở công đoạn sau\n② "Một số sản phẩm phải\nsửa ngoài dây chuyền…"' },
+    D: { vi: 'Mức độ\nnghiêm trọng (S)', jp: '厳しさ', ex: '5' },
+    E: { vi: 'Phân loại\n(Đặc tính đặc thù)', jp: '分類', ex: '◎ (theo bản vẽ)' },
+    F: { vi: 'Nguyên nhân\ncủa hỏng hóc', jp: '潜在的故障原因', ex: '<i>Machine:</i> dao tiện mòn\n<i>Method:</i> sai bù dao\n<i>Material:</i> phôi sai cỡ' },
+    H: { vi: 'Tần suất\nphát sinh (O)', jp: '発生頻度', ex: '3' },
+    I: { vi: 'Quản lý hiện tại\n— Dự phòng', jp: '現行管理 予防', ex: 'Thay dao theo chu kỳ\n500 sản phẩm/lần\n(đang áp dụng)' },
+    J: { vi: 'Quản lý hiện tại\n— Phát hiện ra', jp: '現行管理 検出', ex: 'Đo Ø bằng panme\n100% tại công đoạn,\ntheo tiêu chuẩn kiểm tra' },
+    K: { vi: 'Phát hiện (D)', jp: '検出', ex: '4' },
+    L: { vi: 'RPN', jp: '', ex: 'S×O×D = 5×3×4 = 60' },
+    M: { vi: 'Biện pháp đề xuất\n+ Kết quả xử lý', jp: '推奨処置 / 処置結果', ex: 'Lắp cảm biến đo Ø tự động\n→ chấm lại S/O/D sau cải tiến' },
+  };
+
+  function gColChip(tag) {
+    const c = G_COLS[tag];
+    if (!c) return '';
+    return '<div class="gcol-chip"><div class="gcol-head">'
+      + '<span class="gcol-tag">' + tag + '</span>'
+      + '<span class="gcol-name">' + esc(c.vi) + '</span>'
+      + (c.jp ? '<span class="gcol-jp">' + esc(c.jp) + '</span>' : '')
+      + '</div>'
+      + (c.ex ? '<div class="gcol-ex"><div class="gcol-ex-label">Ví dụ</div><div class="gcol-ex-body">' + c.ex + '</div></div>' : '')
+      + '</div>';
+  }
+
+  // Bảng tiêu chuẩn Mức độ nghiêm trọng S — render trực tiếp từ data thực
+  function gSeverityTable(scope) {
+    const rows = (window.SEVERITY_TABLE || []).filter(r => r.scope === scope).slice()
+      .sort((a, b) => b.rank - a.rank);
+    const body = rows.map(r =>
+      '<tr><td class="s-rank s-' + r.rank + '">' + r.rank + '</td><td>' + esc(r.category) + '</td><td>' + esc(r.text) + '</td></tr>'
+    ).join('');
+    return '<table class="guide-table guide-s-table"><thead><tr><th>Rank S</th><th>Nhóm ảnh hưởng</th><th>Tiêu chuẩn đánh giá</th></tr></thead><tbody>' + body + '</tbody></table>';
+  }
+
+  const G_PENDING = '<div class="guide-pending">⚠ <b>Bảng tham khảo.</b> Sẽ thay bằng <b>bảng tiêu chuẩn chính thức của công ty</b> ngay khi có file. Hiện tạm dùng làm định hướng chấm điểm.</div>';
+
+  function gOccurrenceTable() {
+    return G_PENDING + '<table class="guide-table"><thead><tr><th>Rank O</th><th>Khả năng xảy ra</th><th>Tỷ lệ phát sinh tham khảo</th></tr></thead><tbody>'
+      + '<tr><td class="s-rank s-10">10</td><td>Rất cao — gần như chắc chắn</td><td>≥ 1 lần / 2 sản phẩm</td></tr>'
+      + '<tr><td class="s-rank s-9">9</td><td>Rất cao</td><td>≈ 1 / 3</td></tr>'
+      + '<tr><td class="s-rank s-8">8</td><td>Cao</td><td>≈ 1 / 8</td></tr>'
+      + '<tr><td class="s-rank s-7">7</td><td>Cao — thỉnh thoảng</td><td>≈ 1 / 20</td></tr>'
+      + '<tr><td class="s-rank s-6">6</td><td>Trung bình</td><td>≈ 1 / 80</td></tr>'
+      + '<tr><td class="s-rank s-5">5</td><td>Trung bình thấp</td><td>≈ 1 / 400</td></tr>'
+      + '<tr><td class="s-rank s-4">4</td><td>Tương đối thấp</td><td>≈ 1 / 2.000</td></tr>'
+      + '<tr><td class="s-rank s-3">3</td><td>Thấp</td><td>≈ 1 / 15.000</td></tr>'
+      + '<tr><td class="s-rank s-2">2</td><td>Rất thấp</td><td>≈ 1 / 150.000</td></tr>'
+      + '<tr><td class="s-rank s-1">1</td><td>Hầu như không xảy ra</td><td>≤ 1 / 1.500.000</td></tr>'
+      + '</tbody></table>';
+  }
+
+  function gDetectionTable() {
+    return G_PENDING + '<table class="guide-table"><thead><tr><th>Rank D</th><th>Khả năng phát hiện</th><th>Phương pháp kiểm soát tham khảo</th></tr></thead><tbody>'
+      + '<tr><td class="s-rank s-10">10</td><td>Gần như không phát hiện được</td><td>Không kiểm tra / kiểm tra ngẫu nhiên không đáng tin</td></tr>'
+      + '<tr><td class="s-rank s-9">9</td><td>Rất khó phát hiện</td><td>Chỉ quan sát bằng mắt thường</td></tr>'
+      + '<tr><td class="s-rank s-8">8</td><td>Khó phát hiện</td><td>Kiểm tra thị giác kép / dùng ảnh chuẩn</td></tr>'
+      + '<tr><td class="s-rank s-7">7</td><td>Thấp</td><td>Đo thủ công bằng thước/caliper; gá go–no/go đơn giản</td></tr>'
+      + '<tr><td class="s-rank s-6">6</td><td>Trung bình thấp</td><td>Đo bằng dụng cụ chuyên dụng thủ công</td></tr>'
+      + '<tr><td class="s-rank s-5">5</td><td>Trung bình</td><td>SPC / đo tự động sau công đoạn</td></tr>'
+      + '<tr><td class="s-rank s-4">4</td><td>Tương đối cao</td><td>Phát hiện ngay trong công đoạn bằng cảm biến tự động</td></tr>'
+      + '<tr><td class="s-rank s-3">3</td><td>Cao</td><td>Kiểm tra 100% tự động sớm trong công đoạn</td></tr>'
+      + '<tr><td class="s-rank s-2">2</td><td>Rất cao</td><td>Kiểm tra 100% tự động + cảnh báo; jig kiểm lỗi</td></tr>'
+      + '<tr><td class="s-rank s-1">1</td><td>Chắc chắn phát hiện / phòng tránh</td><td>Poka-yoke: không thể xảy ra hoặc không thể lọt qua</td></tr>'
+      + '</tbody></table>';
+  }
+
+  // Bảng format tổng quan (trang đầu)
+  function gFormatTable() {
+    const top = [
+      ['A', 'Quy trình / Bước /\nChức năng'], ['B', 'Dạng hỏng hóc\ntiềm ẩn'],
+      ['C', 'Ảnh hưởng của\nhỏng hóc'], ['D', 'Mức độ\nnghiêm trọng\n(S)'],
+      ['E', 'Phân loại'], ['F', 'Nguyên nhân'], ['G', 'Phản ánh\nlỗi quá khứ'],
+      ['H', 'Tần suất\nphát sinh (O)'], ['I', 'Quản lý\nDự phòng'],
+      ['J', 'Quản lý\nPhát hiện ra'], ['K', 'Phát hiện\n(D)'], ['L', 'RPN'],
+      ['M', 'Biện pháp\nđề xuất'], ['N', 'Trách nhiệm\n& thời hạn'],
+    ];
+    const cells = top.map(c => '<th><span class="ff-tag">' + c[0] + '</span>\n' + esc(c[1]) + '</th>').join('');
+    const sub = [['O', 'Biện pháp\nđã thực hiện'], ['P', "S'"], ['Q', "O'"], ['R', "D'"], ['S', "RPN'"]];
+    const subCells = sub.map(c => '<th class="ff-grp"><span class="ff-tag">' + c[0] + '</span>\n' + esc(c[1]) + '</th>').join('');
+    return '<div class="guide-format-scroll"><table class="guide-format-table"><thead>'
+      + '<tr>' + cells + '<th class="ff-grp" colspan="5">Kết quả xử lý 処置結果</th></tr>'
+      + '<tr>' + subCells + '</tr>'
+      + '</thead></table></div>';
+  }
+
+  // Định nghĩa các trang hướng dẫn
+  function gPages() {
+    return [
+      // ---------- Trang tổng quan ----------
+      {
+        tag: '', title: 'Tổng quan format P-FMEA', menu: 'Tổng quan — Format P-FMEA',
+        full: true,
+        body:
+          '<div class="g-block"><p><strong>P-FMEA</strong> (Process Failure Mode and Effects Analysis) là phương pháp phân tích có hệ thống nhằm phát hiện và đánh giá các <em>dạng hỏng hóc tiềm ẩn</em> của quá trình sản xuất, từ đó đưa ra biện pháp kiểm soát và cải tiến phòng ngừa <em>trước khi</em> sản xuất hàng loạt.</p></div>'
+          + '<div class="g-block"><h5>📋 Bố cục bảng P-FMEA</h5><p>Bảng gồm các cột từ <b>A</b> đến <b>S</b>. Các trang sau hướng dẫn chi tiết cách hiểu và cách điền cho từng cột.</p>'
+          + gFormatTable() + '</div>'
+          + '<div class="g-block"><h5>🧭 Cách dùng tài liệu này</h5><ul>'
+          + '<li>Chuyển trang bằng <b>‹ Trang trước</b> / <b>Trang sau ›</b>, hoặc chọn nhanh ở ô danh sách phía trên.</li>'
+          + '<li>Mỗi trang: <b>bên trái</b> hiển thị đúng cột đang nói tới (kèm ví dụ), <b>bên phải</b> là cách hiểu &amp; cách làm.</li>'
+          + '<li>Các cột có nền nhạt trong tool là cột <b>tự động điền</b> từ Control Plan.</li>'
+          + '</ul></div>',
+      },
+
+      // ---------- A ----------
+      {
+        tag: 'A', title: 'Quy trình / Bước / Chức năng / Yêu cầu',
+        body:
+          '<div class="g-block"><h5>🔎 Cách hiểu</h5><p>Cột này xác định <b>công đoạn</b> đang phân tích và <b>yêu cầu chất lượng</b> cần đạt của công đoạn đó.</p></div>'
+          + '<div class="g-block"><h5>✍️ Cách làm</h5><ul>'
+          + '<li><b>Số thứ tự công đoạn, tên công đoạn và chức năng</b> phải <b>đồng nhất với Quy trình công nghệ (QTCN)</b> — không tự đặt tên khác.</li>'
+          + '<li><b>Bước (step):</b> nếu một công đoạn gồm nhiều nguyên công thì <b>mỗi nguyên công là một bước</b> riêng.</li>'
+          + '<li><b>Yêu cầu (hạng mục yêu cầu):</b> phải <b>trùng khớp với hạng mục chất lượng trong Control Plan</b> hoặc trong tiêu chuẩn kiểm tra.</li>'
+          + '</ul></div>'
+          + '<div class="g-eg"><b>Ví dụ:</b> Công đoạn <b>“Tiện thô”</b> gồm 2 nguyên công → tách thành Bước 1 (tiện mặt đầu), Bước 2 (tiện đường kính). Yêu cầu lấy đúng theo CP: <b>Ø20 ±0,1 mm</b>.</div>',
+      },
+
+      // ---------- B ----------
+      {
+        tag: 'B', title: 'Dạng hỏng hóc tiềm ẩn',
+        body:
+          '<div class="g-block"><h5>🔎 Cách hiểu</h5><p>Dạng hỏng hóc là trạng thái mà công đoạn <b>không đáp ứng được yêu cầu</b> đã nêu ở cột A — tức là <b>phủ định của yêu cầu</b>.</p></div>'
+          + '<div class="g-block"><h5>✍️ Cách làm</h5><p>Viết dạng hỏng hóc là <b>phủ định trực tiếp của yêu cầu</b>, nêu rõ ngưỡng/điều kiện không đạt.</p></div>'
+          + '<div class="g-eg"><b>Ví dụ:</b> Yêu cầu là <b>“Lực kéo phá hủy min 14 kN”</b> → Dạng hỏng hóc là <b>“Lực kéo phá hủy &lt; 14 kN”</b> (hoặc “không đạt”).</div>'
+          + '<div class="g-block"><p class="muted">Trong tool, cột này được <b>tự động đề xuất</b> dạng “&lt;tên hạng mục&gt; không đạt”; bạn chỉnh lại cho sát ngưỡng thực tế.</p></div>',
+      },
+
+      // ---------- C ----------
+      {
+        tag: 'C', title: 'Ảnh hưởng của dạng hỏng hóc',
+        body:
+          '<div class="g-block"><h5>🔎 Cách hiểu</h5><p>Đây là cột đòi hỏi <b>kiến thức và kinh nghiệm</b> về dây chuyền sản xuất, về lắp ráp sản phẩm và về <b>nhận định nguy hiểm đối với người sử dụng xe</b>. Ảnh hưởng được chia làm hai loại:</p>'
+          + '<ul>'
+          + '<li><b>Ảnh hưởng đến công đoạn:</b> hiểu là <b>toàn bộ quá trình sản xuất và lắp ráp</b> trước khi hình thành một chiếc xe hoàn chỉnh — bao gồm <b>cả lắp ráp nội bộ nhà máy lẫn lắp ráp tại khách hàng</b> mà mình xuất hàng cho họ.</li>'
+          + '<li><b>Ảnh hưởng đến sản phẩm (khách hàng):</b> “sản phẩm” ở đây là <b>sản phẩm cuối cùng</b>. Với ngành sản xuất giảm xóc, sản phẩm cuối cùng là <b>chiếc xe máy</b>, còn khách hàng là <b>người sử dụng xe</b>.</li>'
+          + '</ul></div>'
+          + '<div class="g-block"><h5>✍️ Cách làm</h5><ul>'
+          + '<li>Khi phân tích một dạng hỏng hóc, phải xác định dạng hỏng đó <b>có được ngăn chặn trong suốt quá trình từ sản xuất đến khi lắp lên xe hay không</b>.</li>'
+          + '<li>Nếu <b>được ngăn chặn 100%</b> → chỉ phân tích theo hướng <b>ảnh hưởng đến công đoạn</b>.</li>'
+          + '<li>Nếu công đoạn <b>không thể ngăn chặn được</b> → mới tiếp tục phân tích <b>ảnh hưởng đến sản phẩm</b> (đến chiếc xe / người dùng).</li>'
+          + '<li>Mỗi câu phân tích ảnh hưởng phải <b>gắn với một câu kết luận tương ứng trong Bảng tiêu chuẩn đánh giá mức độ nghiêm trọng</b> (ý ② của cột) — đây là cơ sở để chấm điểm S ở cột D.</li>'
+          + '</ul></div>'
+          + '<div class="g-block"><h5>📊 Bảng tiêu chuẩn — Ảnh hưởng đến CÔNG ĐOẠN</h5>' + gSeverityTable('process') + '</div>'
+          + '<div class="g-block"><h5>📊 Bảng tiêu chuẩn — Ảnh hưởng đến SẢN PHẨM (khách hàng)</h5>' + gSeverityTable('product') + '</div>',
+      },
+
+      // ---------- E ----------
+      {
+        tag: 'E', title: 'Phân loại — Đặc tính đặc thù',
+        body:
+          '<div class="g-block"><h5>🔎 Cách hiểu</h5><p>Cột này ghi <b>ký hiệu đặc tính đặc thù</b> (Special Characteristic) của hạng mục — ví dụ đặc tính an toàn / đặc tính quan trọng.</p></div>'
+          + '<div class="g-block"><h5>✍️ Cách làm</h5><ul>'
+          + '<li>Ký hiệu phải <b>khớp đúng với bản vẽ</b> — không tự gán.</li>'
+          + '<li>Trong tool, nếu Control Plan có sẵn ký hiệu đặc tính thì cột này được điền tự động; vẫn kiểm tra lại đối chiếu bản vẽ.</li>'
+          + '</ul></div>',
+      },
+
+      // ---------- D ----------
+      {
+        tag: 'D', title: 'Mức độ nghiêm trọng (S)',
+        body:
+          '<div class="g-block"><h5>🔎 Cách hiểu</h5><p>Điểm <b>S</b> thể hiện mức độ nghiêm trọng của ảnh hưởng đã nêu ở cột C. Điểm càng cao thì ảnh hưởng càng nghiêm trọng (thang 1–10).</p></div>'
+          + '<div class="g-block"><h5>✍️ Cách làm</h5><ul>'
+          + '<li>Chấm điểm <b>theo Bảng tiêu chuẩn đánh giá mức độ nghiêm trọng</b>.</li>'
+          + '<li>Khi cột Ảnh hưởng (C) đã <b>gắn câu kết luận lấy từ bảng tiêu chuẩn</b>, thì ở cột này chỉ việc <b>nhập đúng số điểm tương ứng</b> với câu kết luận đó — không tự chấm cảm tính.</li>'
+          + '</ul><p class="muted">Trong tool: chọn câu kết luận ở ý ② cột Ảnh hưởng → điểm S tự điền theo Rank.</p></div>'
+          + '<div class="g-block"><h5>📊 Bảng tiêu chuẩn — Ảnh hưởng đến CÔNG ĐOẠN</h5>' + gSeverityTable('process') + '</div>'
+          + '<div class="g-block"><h5>📊 Bảng tiêu chuẩn — Ảnh hưởng đến SẢN PHẨM (khách hàng)</h5>' + gSeverityTable('product') + '</div>',
+      },
+
+      // ---------- F ----------
+      {
+        tag: 'F', title: 'Nguyên nhân của hỏng hóc',
+        body:
+          '<div class="g-block"><h5>🔎 Cách hiểu</h5><p>Cột này cũng đòi hỏi <b>kiến thức và kinh nghiệm về dây chuyền sản xuất</b>. Cần tìm ra <b>nguyên nhân gốc rễ</b> gây ra dạng hỏng hóc.</p></div>'
+          + '<div class="g-block"><h5>✍️ Cách làm</h5><ul>'
+          + '<li>Phân tích <b>theo 4M</b> (Man / Machine / Method / Material) để <b>không bỏ sót nguyên nhân</b>.</li>'
+          + '<li>Một dạng hỏng hóc <b>có thể không đủ cả 4 nguyên nhân</b> theo 4M — nhưng vẫn phải <b>tư duy lần lượt theo 4M</b> để rà soát.</li>'
+          + '<li>Phải <b>dựa vào các điều kiện chế tạo thực tế của công đoạn đó</b> để phân tích (thông số máy, dụng cụ, vật liệu, thao tác…).</li>'
+          + '</ul></div>'
+          + '<div class="guide-4m-grid">'
+          + '<div class="guide-4m-card m-man"><div class="m-title">👤 Man (Con người)</div><p>Thao tác sai, thiếu kỹ năng, không theo SOP, nhầm lẫn…</p></div>'
+          + '<div class="guide-4m-card m-machine"><div class="m-title">⚙️ Machine (Máy móc)</div><p>Dụng cụ mòn, thiết bị trục trặc, cài đặt/điều chỉnh sai…</p></div>'
+          + '<div class="guide-4m-card m-method"><div class="m-title">📋 Method (Phương pháp)</div><p>Điều kiện gia công chưa tối ưu, thứ tự thao tác sai, thiếu bước…</p></div>'
+          + '<div class="guide-4m-card m-material"><div class="m-title">📦 Material (Vật liệu)</div><p>Phôi/linh kiện đầu vào sai cỡ, kém chất lượng…</p></div>'
+          + '</div>',
+      },
+
+      // ---------- H ----------
+      {
+        tag: 'H', title: 'Tần suất phát sinh (O)',
+        body:
+          '<div class="g-block"><h5>🔎 Cách hiểu</h5><p>Điểm <b>O</b> đánh giá <b>xác suất nguyên nhân xảy ra</b> trong điều kiện sản xuất bình thường (thang 1–10).</p></div>'
+          + '<div class="g-block"><h5>✍️ Cách làm</h5><p>Chấm điểm <b>theo Bảng tiêu chuẩn đánh giá tần suất phát sinh</b>, dựa trên dữ liệu lỗi thực tế hoặc kinh nghiệm với các nguyên nhân tương tự.</p></div>'
+          + '<div class="g-block"><h5>📊 Bảng tiêu chuẩn đánh giá tần suất phát sinh</h5>' + gOccurrenceTable() + '</div>',
+      },
+
+      // ---------- I ----------
+      {
+        tag: 'I', title: 'Quản lý hiện tại — Dự phòng',
+        body:
+          '<div class="g-block"><h5>🔎 Cách hiểu</h5><p>Ghi <b>phương pháp quản lý đang được thực hiện để nguyên nhân không xảy ra</b> (phòng ngừa nguyên nhân).</p></div>'
+          + '<div class="g-block"><h5>✍️ Cách làm</h5><ul>'
+          + '<li>Suy nghĩ: <b>quản lý như thế nào để nguyên nhân đó không xảy ra?</b></li>'
+          + '<li>Biện pháp ghi vào phải là biện pháp <b>đang thực sự được áp dụng tại dây chuyền</b> — không ghi biện pháp mong muốn hoặc chưa triển khai.</li>'
+          + '</ul></div>'
+          + '<div class="g-eg"><b>Ví dụ:</b> Nguyên nhân “dao tiện mòn” → Dự phòng: <b>“Thay dao theo chu kỳ 500 sản phẩm/lần, có ghi nhật ký”</b> (đang áp dụng).</div>',
+      },
+
+      // ---------- J ----------
+      {
+        tag: 'J', title: 'Quản lý hiện tại — Phát hiện ra',
+        body:
+          '<div class="g-block"><h5>🔎 Cách hiểu</h5><p>Cột này gồm <b>2 ý</b>: biện pháp <b>phát hiện ra nguyên nhân</b> và biện pháp <b>phát hiện ra dạng hỏng hóc</b>.</p></div>'
+          + '<div class="g-block"><h5>✍️ Cách làm</h5><ul>'
+          + '<li>Phải ghi <b>cụ thể</b>: <b>kiểm tra cái gì — bằng phương pháp gì — tần suất ra sao</b>, và phải <b>khớp với tiêu chuẩn kiểm tra hoặc Control Plan</b>.</li>'
+          + '<li>Chủ yếu quan tâm: ảnh hưởng/nguyên nhân được <b>phát hiện ngay tại công đoạn đang phân tích</b> (tại hiện trường phát sinh), hay phát hiện ở <b>công đoạn sau đó</b> (sau khi kết thúc gia công).</li>'
+          + '</ul></div>'
+          + '<div class="g-eg"><b>Ví dụ:</b> <b>“Đo đường kính bằng panme, kiểm tra 100% tại công đoạn, theo tiêu chuẩn kiểm tra QC-…”.</b></div>'
+          + '<div class="g-block"><h5>📊 Bảng tiêu chuẩn đánh giá phát hiện ra</h5>' + gDetectionTable() + '</div>',
+      },
+
+      // ---------- L ----------
+      {
+        tag: 'L', title: 'RPN — Chỉ số ưu tiên rủi ro',
+        body:
+          '<div class="g-block"><h5>🔎 Cách hiểu</h5><p>RPN là <b>tích của S, O và D</b>.</p>'
+          + '<div class="guide-rpn-formula"><span class="rpn-box">S</span><span class="rpn-op">×</span><span class="rpn-box">O</span><span class="rpn-op">×</span><span class="rpn-box">D</span><span class="rpn-op">=</span><span class="rpn-box rpn-result">RPN</span></div></div>'
+          + '<div class="g-block"><h5>✍️ Cách làm</h5><p>Trong tool, RPN được <b>tự động tính</b> ngay khi nhập đủ S, O, D. Lưu ý: việc <b>có phải thực hiện biện pháp đề xuất hay không</b> được xét theo <b>tiêu chuẩn riêng</b> (xem trang cột M), <b>không</b> chỉ dựa vào RPN.</p></div>',
+      },
+
+      // ---------- M + kết quả xử lý ----------
+      {
+        tag: 'M', title: 'Biện pháp đề xuất & Kết quả xử lý',
+        body:
+          '<div class="g-block"><h5>🔎 Cách hiểu</h5><p>Cột này ghi <b>biện pháp cải tiến</b> nhằm giảm điểm S, O hoặc D, kèm <b>kết quả sau khi thực hiện</b> (các cột O–S: biện pháp đã thực hiện và S′/O′/D′/RPN′ sau cải tiến).</p></div>'
+          + '<div class="g-block"><h5>✍️ Cách làm</h5><ul>'
+          + '<li>Việc thực hiện biện pháp phải áp dụng <b>theo Tiêu chuẩn thực hiện biện pháp đề xuất</b> — <b>KHÔNG</b> áp dụng theo RPN.</li>'
+          + '<li>Trong tiêu chuẩn sẽ quy định rõ: với mức <b>S, O, D</b> như thế nào thì <b>bắt buộc phải thực hiện biện pháp</b> để giảm điểm.</li>'
+          + '<li>Nếu thực hiện được biện pháp → <b>ghi biện pháp</b>, rồi <b>chấm lại S, O, D sau khi thực hiện</b> vào các ô phía sau (S′/O′/D′ → RPN′ tự tính).</li>'
+          + '</ul></div>'
+          + '<div class="guide-pending">⚠ <b>Trường hợp đặc biệt — S ≥ 9:</b> nếu điểm <b>S từ 9 trở lên</b> mà do <b>tính công nghệ do bên R&amp;D thiết kế</b>, không thể áp dụng biện pháp thay đổi thiết kế, thì phải <b>tổng hợp hạng mục S đó vào trang tổng hợp</b> và <b>gửi sang công ty mẹ tại Nhật để xin phê duyệt</b>.</div>'
+          + '<div class="guide-pending">📄 <b>Bảng “Tiêu chuẩn thực hiện biện pháp đề xuất”</b> sẽ được chèn vào đây khi có file chính thức.</div>',
+      },
+    ];
+  }
+
+  let GUIDE_IDX = 0;
+  let GUIDE_PAGES = null;
+
+  function renderGuidePage(i) {
+    const pages = GUIDE_PAGES;
+    GUIDE_IDX = Math.max(0, Math.min(i, pages.length - 1));
+    const pg = pages[GUIDE_IDX];
+    const root = $('#guideRoot');
+    const titleHTML = '<div class="guide-page-title">'
+      + (pg.tag ? '<span class="gpt-tag">' + pg.tag + '</span>' : '')
+      + '<span>' + esc(pg.title) + '</span></div>';
+    if (pg.full) {
+      root.innerHTML = titleHTML + '<div class="guide-right">' + pg.body + '</div>';
+    } else {
+      root.innerHTML = titleHTML + '<div class="guide-two-col"><div class="guide-left">'
+        + gColChip(pg.tag) + '</div><div class="guide-right">' + pg.body + '</div></div>';
+    }
+    $('#guidePageInfo').textContent = 'Trang ' + (GUIDE_IDX + 1) + '/' + pages.length;
+    $('#guideJump').value = String(GUIDE_IDX);
+    $('#guidePrev').disabled = GUIDE_IDX === 0;
+    $('#guideNext').disabled = GUIDE_IDX === pages.length - 1;
+    if (root.scrollIntoView) window.scrollTo({ top: 0 });
+  }
+
+  function setupGuide() {
+    GUIDE_PAGES = gPages();
+    const jump = $('#guideJump');
+    jump.innerHTML = GUIDE_PAGES.map((p, i) =>
+      '<option value="' + i + '">' + esc((i === 0 ? '' : (i) + '. ') + (p.menu || ((p.tag ? p.tag + ' — ' : '') + p.title))) + '</option>'
+    ).join('');
+    jump.addEventListener('change', () => renderGuidePage(parseInt(jump.value, 10) || 0));
+    $('#guidePrev').addEventListener('click', () => renderGuidePage(GUIDE_IDX - 1));
+    $('#guideNext').addEventListener('click', () => renderGuidePage(GUIDE_IDX + 1));
+    renderGuidePage(0);
   }
 
   document.addEventListener('DOMContentLoaded', init);
