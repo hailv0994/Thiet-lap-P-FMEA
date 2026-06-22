@@ -99,4 +99,36 @@ js/parser.js        Đọc & rút dữ liệu từ Control Plan
 js/app.js           State, dựng bảng P-FMEA, chấm điểm S, xuất Excel
 vendor/             Thư viện SheetJS (đọc/ghi Excel) — offline
 samples/            File mẫu: CP, FORM P-FMEA, tiêu chuẩn đánh giá S
+tools/build.js      Script gộp tất cả thành 1 file P-FMEA-Builder.html độc lập
 ```
+
+---
+
+## Sửa code & build lại (cho người phát triển)
+
+Bản phát hành là **một file HTML độc lập** `P-FMEA-Builder.html`, được gộp từ
+`index.html` + `styles.css` + `js/*.js` + `data/*.js` + `vendor/*`.
+
+Sau khi sửa bất kỳ file nguồn nào (`index.html`, `styles.css`, `js/*.js`...),
+chạy lệnh sau ở **thư mục gốc repo** để build lại file độc lập:
+
+```bash
+node tools/build.js
+```
+
+Lệnh in ra dung lượng file (vd: `Built standalone: 1.35 MB`) là thành công.
+
+### Quy trình làm việc trên máy desktop
+
+```bash
+git clone https://github.com/hailv0994/thiet-lap-p-fmea.git
+cd thiet-lap-p-fmea
+git pull                 # luôn lấy bản mới nhất trước khi sửa
+# ... sửa code ...
+node tools/build.js      # build lại P-FMEA-Builder.html
+git add -A && git commit -m "Mô tả thay đổi"
+git push                 # đẩy lên GitHub (web tự cập nhật qua GitHub Pages)
+```
+
+> GitHub Pages phục vụ từ branch hiện hành; chỉ cần `git push` đúng branch là
+> trang web tự cập nhật sau ít phút.
