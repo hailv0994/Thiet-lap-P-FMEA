@@ -106,6 +106,15 @@
     return !!s && /[+\-±]/.test(s);
   }
 
+  // Trong CP, ký hiệu đường kính Ø thường được gõ là chữ "F" với font Symbol
+  // (Symbol hiển thị "F" thành ký hiệu đường kính). Khi đưa sang P-FMEA (font
+  // Arial) thì "F" lại hiện đúng là chữ F. Chuyển chữ "F"/"f" đứng một mình ngay
+  // trước một con số (cách dùng làm ký hiệu đường kính) thành "Ø".
+  function fixDiameter(s) {
+    s = (s == null ? '' : String(s));
+    return s.replace(/(^|[^0-9A-Za-zÀ-ỹ])[Ff](?=\s*[0-9.])/g, '$1Ø');
+  }
+
   /*
    * Trả về:
    * { sheetName, processName, items: [ {no, name, spec, tol, requirement,
@@ -208,7 +217,7 @@
       const r0 = starts[i];
       const r1 = (i + 1 < starts.length ? starts[i + 1] : maxRow + 1) - 1; // hàng cuối của hạng mục
 
-      const name = vnText(cellRC(ws, r0, nameCol, merges));
+      const name = fixDiameter(vnText(cellRC(ws, r0, nameCol, merges)));
       if (!name) continue;
 
       // spec: ô đầu tiên có giá trị trong specCol
@@ -216,7 +225,7 @@
       if (specCol >= 0) {
         for (let r = r0; r <= r1; r++) {
           const v = cellRC(ws, r, specCol, [] /*không truy merge để tránh lặp*/);
-          if (norm(v)) { spec = firstLine(v); break; }
+          if (norm(v)) { spec = fixDiameter(firstLine(v)); break; }
         }
       }
 

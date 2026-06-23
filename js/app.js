@@ -83,18 +83,35 @@
     return [name + specDisplay + ' không đạt'];
   }
 
-  // Tạo 1 hoặc 2 yêu cầu từ 1 hạng mục CP (tùy số dạng hỏng)
+  // Tạo 1 hoặc 2 yêu cầu từ 1 hạng mục CP (tùy số dạng hỏng).
+  // Khi tách 2 dạng hỏng (lớn hơn / nhỏ hơn) → 2 yêu cầu ĐỘC LẬP (mỗi cái có
+  // nguyên nhân/ S / O / D riêng) nhưng cùng splitId để cột "Yêu cầu" chỉ hiện 1 dòng.
   function reqsFromItem(item) {
-    const base = {
+    const modes = failureModesFor(item);
+    const splitId = modes.length > 1 ? uid('split') : '';
+    return modes.map((fm) => ({
+      id: uid('r'),
+      splitId,
       reqText: item.requirement || item.name || '',
+      failureMode: fm,
       effectAnalysis: '', effectStdText: '', effectScope: '', severity: '',
       classification: item.sc || '',
       detectFailureAuto: detectAuto(item),
       mergeId: '',
-    };
-    return failureModesFor(item).map((fm) => Object.assign({}, base, {
-      id: uid('r'), failureMode: fm, causes: [newCause()],
+      causes: [newCause()],
     }));
+  }
+
+  // Đánh số yêu cầu: các yêu cầu cùng splitId (tách dạng hỏng) dùng CHUNG 1 số.
+  // Trả về map { reqId -> số thứ tự yêu cầu }.
+  function reqNumbers(reqs) {
+    const map = {}; const seen = {}; let n = 0;
+    reqs.forEach((r) => {
+      const key = r.splitId || r.id;
+      if (!(key in seen)) { n++; seen[key] = n; }
+      map[r.id] = seen[key];
+    });
+    return map;
   }
 
   // ------------------------ Bộ chọn ảnh hưởng (S) -------------------
@@ -252,13 +269,20 @@
     ths[14].colSpan = 5; // nhóm Kết quả xử lý
   }
 
-  function procCellHTML(p) {
-    const reqLines = p.reqs.map((r, i) => `
+  function procCellHTML(p, reqNo) {
+    reqNo = reqNo || reqNumbers(p.reqs);
+    const seen = new Set();
+    const reqLines = p.reqs.map((r) => {
+      const key = r.splitId || r.id;
+      if (seen.has(key)) return '';   // yêu cầu đã tách dạng hỏng → chỉ hiện 1 dòng
+      seen.add(key);
+      return `
       <div class="req-line" data-proc="${p.id}" data-req="${r.id}">
-        <span class="idx">${i + 1}.</span>
+        <span class="idx">${reqNo[r.id]}.</span>
         <textarea data-field="reqText" rows="2" placeholder="Yêu cầu (điều kiện chất lượng)">${esc(r.reqText)}</textarea>
         <button class="mini-btn danger" data-action="del-req" title="Xóa yêu cầu này">✕</button>
-      </div>`).join('');
+      </div>`;
+    }).join('');
     return `<div class="proc-cell" data-proc="${p.id}">
         <div class="proc-head">
           <span class="proc-move">
@@ -282,11 +306,11 @@
 
   // Ô cột B (Dạng hỏng hóc): liệt kê tất cả dạng hỏng hóc trong nhóm gộp.
   // Mỗi dòng có số thứ tự (theo yêu cầu ở cột A), nút 🔗 Gộp và 🔓 Tách (nếu đang gộp).
-  function fmCellHTML(p, grp) {
+  function fmCellHTML(p, grp, reqNo) {
     const grouped = grp.length > 1;
-    return grp.map(({ r, ri }) => `
+    return grp.map(({ r }) => `
       <div class="fm-line" data-proc="${p.id}" data-req="${r.id}">
-        <span class="fm-idx">${ri + 1}.</span>
+        <span class="fm-idx">${reqNo[r.id]}.</span>
         <div class="cell-edit" contenteditable="true" data-field="failureMode">${esc(r.failureMode)}</div>
         <span class="fm-tools">
           <button class="mini-btn" data-action="merge-open" title="Gộp các dạng hỏng hóc giống nhau">🔗</button>
@@ -361,6 +385,7 @@
     const rows = [];
     for (const p of state.processes) {
       const groups = reqGroups(p.reqs);
+      const reqNo = reqNumbers(p.reqs);
       const totalRows = groups.reduce((n, g) => n + (g[0].r.causes.length || 1), 0) || 1;
       let firstProcRow = true;
 
@@ -372,11 +397,11 @@
 
           // Cột A — chỉ ở hàng đầu của công đoạn
           if (firstProcRow) {
-            tr += `<td rowspan="${totalRows}">${procCellHTML(p)}</td>`;
+            tr += `<td rowspan="${totalRows}">${procCellHTML(p, reqNo)}</td>`;
           }
           // B,C,D,E — chỉ ở hàng đầu của yêu cầu
           if (ci === 0) {
-            tr += `<td class="auto" rowspan="${rs}">${fmCellHTML(p, grp)}</td>`;
+            tr += `<td class="auto" rowspan="${rs}">${fmCellHTML(p, grp, reqNo)}</td>`;
             tr += effectCellHTML(p, r).replace('@RS@', rs);
             tr += `<td class="num" rowspan="${rs}"><div class="score-box" id="sev-${r.id}">${esc(r.severity)}</div></td>`;
             tr += `<td rowspan="${rs}" data-proc="${p.id}" data-req="${r.id}">
@@ -558,8 +583,14 @@
       if (p) { p.reqs.push(reqFromItem({ name: '', requirement: '' })); render(); }
     } else if (action === 'del-req') {
       const p = getProc(pid);
-      if (p && p.reqs.length > 1) { p.reqs = p.reqs.filter((r) => r.id !== rid); render(); }
-      else if (p) { alert('Mỗi công đoạn cần ít nhất 1 yêu cầu.'); }
+      const target = p && p.reqs.find((r) => r.id === rid);
+      // Xóa cả cụm tách dạng hỏng (cùng splitId) — vì cột Yêu cầu chỉ hiện 1 dòng.
+      const toDel = target && target.splitId
+        ? p.reqs.filter((r) => r.splitId === target.splitId).map((r) => r.id)
+        : [rid];
+      if (p && p.reqs.length > toDel.length) {
+        p.reqs = p.reqs.filter((r) => toDel.indexOf(r.id) < 0); render();
+      } else if (p) { alert('Mỗi công đoạn cần ít nhất 1 yêu cầu.'); }
     } else if (action === 'del-proc') {
       if (confirm('Xóa công đoạn này?')) {
         state.processes = state.processes.filter((p) => p.id !== pid); render();

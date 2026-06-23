@@ -47,6 +47,17 @@
     return groups;
   }
 
+  // Đánh số yêu cầu: các yêu cầu cùng splitId (tách dạng hỏng) dùng CHUNG 1 số.
+  function reqNumbers(reqs) {
+    const map = {}; const seen = {}; let n = 0;
+    reqs.forEach((r) => {
+      const key = r.splitId || r.id;
+      if (!(key in seen)) { n++; seen[key] = n; }
+      map[r.id] = seen[key];
+    });
+    return map;
+  }
+
   // cột -> loại: T text, N số, S đặc tính đặc thù
   const COL_KIND = { 1: 'T', 2: 'T', 3: 'T', 4: 'N', 5: 'S', 6: 'T', 7: 'T', 8: 'N', 9: 'T', 10: 'T', 11: 'N', 12: 'N', 13: 'T', 14: 'T', 15: 'T', 16: 'N', 17: 'N', 18: 'N', 19: 'N' };
   const TEXT_COLS = [1, 2, 3, 6, 7, 9, 10, 13, 14, 15];
@@ -70,8 +81,15 @@
     for (const p of state.processes) {
       const procStart = row;
       const groups = reqGroups(p.reqs);
+      const reqNo = reqNumbers(p.reqs);
       const totalRows = groups.reduce((n, g) => n + (g[0].r.causes.length || 1), 0) || 1;
-      const reqList = p.reqs.map((r, i) => `${i + 1}.${r.reqText}`).join('\n');
+      const seenReq = new Set();
+      const reqList = p.reqs.map((r) => {
+        const key = r.splitId || r.id;
+        if (seenReq.has(key)) return '';   // tách dạng hỏng → cột Yêu cầu chỉ 1 dòng
+        seenReq.add(key);
+        return `${reqNo[r.id]}.${r.reqText}`;
+      }).filter(Boolean).join('\n');
       const aText = `${p.no ? p.no + '.' : ''}${p.name}\n\n-Chức năng: \n${p.func || ''}\n\n-Yêu cầu: \n${reqList}`;
       put(procStart, 1, aText);
       if (totalRows > 1) merges.push([1, procStart, 1, procStart + totalRows - 1]);
@@ -81,7 +99,7 @@
         const reqStart = row;
         const rs = r.causes.length || 1;
         // Cột B: liệt kê mọi dạng hỏng hóc trong nhóm, đánh số theo yêu cầu ở cột A
-        const fmText = grp.map(({ r: m, ri }) => `${ri + 1}.${m.failureMode || ''}`).join('\n');
+        const fmText = grp.map(({ r: m }) => `${reqNo[m.id]}.${m.failureMode || ''}`).join('\n');
         put(reqStart, 2, fmText);
         const effect = r.effectAnalysis
           ? (r.effectStdText ? r.effectAnalysis + '\n=>' + r.effectStdText : r.effectAnalysis)
