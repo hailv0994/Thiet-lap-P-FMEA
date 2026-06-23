@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>P-FMEA TOOL — Thiết lập P-FMEA từ Control Plan</title>
-  <link rel="stylesheet" href="styles.css?v=20260623b" />
+  <link rel="stylesheet" href="styles.css?v=20260623c" />
 </head>
 <body>
   <header class="topbar">
@@ -97,6 +97,10 @@
   <!-- ======== Tab 2: Hướng dẫn ======== -->
   <div id="tabGuide" class="tab-panel guide-wrap" hidden>
     <div class="guide-container">
+      <div class="guide-mode-btns">
+        <button class="guide-mode-btn active" data-mode="think">🧠 Hiểu &amp; tư duy đúng</button>
+        <button class="guide-mode-btn" data-mode="web">🖱️ Thao tác trên web</button>
+      </div>
       <div class="guide-toolbar">
         <button id="guidePrev" class="btn ghost">‹ Trang trước</button>
         <select id="guideJump" class="guide-jump"></select>
@@ -146,12 +150,12 @@
 
   <script src="vendor/xlsx.full.min.js"></script>
   <script src="vendor/fflate.min.js"></script>
-  <script src="data/severity.js?v=20260623b"></script>
-  <script src="data/template.js?v=20260623b"></script>
-  <script src="data/material.js?v=20260623b"></script>
-  <script src="js/parser.js?v=20260623b"></script>
-  <script src="js/export-template.js?v=20260623b"></script>
+  <script src="data/severity.js?v=20260623c"></script>
+  <script src="data/template.js?v=20260623c"></script>
+  <script src="data/material.js?v=20260623c"></script>
+  <script src="js/parser.js?v=20260623c"></script>
+  <script src="js/export-template.js?v=20260623c"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/app.js?v=20260623b"></script>
+  <script src="js/app.js?v=20260623c"></script>
 </body>
 </html>

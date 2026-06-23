@@ -1611,6 +1611,8 @@
       ex: 'S\n(Safety — tự động từ CP)' },
     F: { vi: 'Nguyên nhân\ncủa hỏng hóc', jp: '潜在的故障原因',
       ex: '<i>Machine:</i> Máy hàn lệch tọa độ trục Z\n<i>Man:</i> Cài đặt sai thông số hàn\n<i>Method:</i> Gá phôi không đúng vị trí\n<i>Material:</i> Phôi cap sai chiều cao đầu vào' },
+    G: { vi: 'Phản ánh\nlỗi quá khứ', jp: '過去不具合の反映',
+      ex: '<i>Nguyên nhân “Máy hàn lệch tọa độ trục Z”</i>\n→ đã từng phát sinh lỗi thực tế trước đây\n→ điền <b>“o”</b>\n\n<i>Nguyên nhân chưa từng phát sinh</i>\n→ để trống' },
     H: { vi: 'Tần suất\nphát sinh (O)', jp: '発生頻度', ex: '3' },
     I: { vi: 'Quản lý hiện tại\n— Dự phòng', jp: '現行管理 予防',
       ex: 'Bảo dưỡng máy hàn định kỳ hàng tháng\nKiểm tra tọa độ bằng mẫu chuẩn đầu mỗi ca\nKiểm tra phôi cap đầu vào theo CP' },
@@ -1644,35 +1646,49 @@
     return '<table class="guide-table guide-s-table"><thead><tr><th>Rank S</th><th>Nhóm ảnh hưởng</th><th>Tiêu chuẩn đánh giá</th></tr></thead><tbody>' + body + '</tbody></table>';
   }
 
-  const G_PENDING = '<div class="guide-pending">⚠ <b>Bảng tham khảo.</b> Sẽ thay bằng <b>bảng tiêu chuẩn chính thức của công ty</b> ngay khi có file. Hiện tạm dùng làm định hướng chấm điểm.</div>';
+  const G_OFFICIAL = '<div class="guide-official">📘 <b>Bảng tiêu chuẩn chính thức</b> — Bảng-2 Tiêu chuẩn đánh giá P-FMEA (GL SQS0811). Trường hợp khách hàng có tiêu chuẩn riêng thì thực hiện theo tiêu chuẩn của khách hàng.</div>';
 
+  // (2) Tiêu chuẩn đánh giá Tần suất phát sinh — nguyên văn theo Bảng-2
   function gOccurrenceTable() {
-    return G_PENDING + '<table class="guide-table"><thead><tr><th>Rank O</th><th>Khả năng xảy ra</th><th>Tỷ lệ phát sinh tham khảo</th></tr></thead><tbody>'
-      + '<tr><td class="s-rank s-10">10</td><td>Rất cao — gần như chắc chắn</td><td>≥ 1 lần / 2 sản phẩm</td></tr>'
-      + '<tr><td class="s-rank s-9">9</td><td>Rất cao</td><td>≈ 1 / 3</td></tr>'
-      + '<tr><td class="s-rank s-8">8</td><td>Cao</td><td>≈ 1 / 8</td></tr>'
-      + '<tr><td class="s-rank s-7">7</td><td>Cao — thỉnh thoảng</td><td>≈ 1 / 20</td></tr>'
-      + '<tr><td class="s-rank s-6">6</td><td>Trung bình</td><td>≈ 1 / 80</td></tr>'
-      + '<tr><td class="s-rank s-5">5</td><td>Trung bình thấp</td><td>≈ 1 / 400</td></tr>'
-      + '<tr><td class="s-rank s-4">4</td><td>Tương đối thấp</td><td>≈ 1 / 2.000</td></tr>'
-      + '<tr><td class="s-rank s-3">3</td><td>Thấp</td><td>≈ 1 / 15.000</td></tr>'
-      + '<tr><td class="s-rank s-2">2</td><td>Rất thấp</td><td>≈ 1 / 150.000</td></tr>'
-      + '<tr><td class="s-rank s-1">1</td><td>Hầu như không xảy ra</td><td>≤ 1 / 1.500.000</td></tr>'
+    return G_OFFICIAL + '<table class="guide-table"><thead><tr><th>Rank O</th><th>Khả năng của hỏng hóc</th><th>Tần suất phát sinh của nguyên nhân<br><small>(số vấn đề / mặt hàng · xe)</small></th><th>Giá trị Cp</th></tr></thead><tbody>'
+      + '<tr><td class="s-rank s-10">10</td><td rowspan="1">Rất cao</td><td>100/1.000 trở lên &nbsp;·&nbsp; 1/10 trở lên</td><td>—</td></tr>'
+      + '<tr><td class="s-rank s-9">9</td><td>Rất cao</td><td>50/1.000 &nbsp;·&nbsp; 1/20</td><td>Cp &gt; 0,67</td></tr>'
+      + '<tr><td class="s-rank s-8">8</td><td rowspan="2">Cao</td><td>20/1.000 &nbsp;·&nbsp; 1/50</td><td>—</td></tr>'
+      + '<tr><td class="s-rank s-7">7</td><td>10/1.000 &nbsp;·&nbsp; 1/100</td><td>—</td></tr>'
+      + '<tr><td class="s-rank s-6">6</td><td rowspan="3">Mức độ trung bình</td><td>2/1.000 &nbsp;·&nbsp; 1/500</td><td>Cp &gt; 1,0</td></tr>'
+      + '<tr><td class="s-rank s-5">5</td><td>0,5/1.000 &nbsp;·&nbsp; 1/2.000</td><td>—</td></tr>'
+      + '<tr><td class="s-rank s-4">4</td><td>0,1/1.000 &nbsp;·&nbsp; 1/10.000</td><td>—</td></tr>'
+      + '<tr><td class="s-rank s-3">3</td><td rowspan="2">Thấp</td><td>0,01/1.000 &nbsp;·&nbsp; 1/100.000</td><td>Cp ≥ 1,33</td></tr>'
+      + '<tr><td class="s-rank s-2">2</td><td>0,001/1.000 trở xuống &nbsp;·&nbsp; 1/1.000.000</td><td>Cp ≥ 1,67</td></tr>'
+      + '<tr><td class="s-rank s-1">1</td><td>Rất thấp</td><td>Hỏng hóc được loại bỏ bằng quản lý dự phòng</td><td>—</td></tr>'
       + '</tbody></table>';
   }
 
+  // (3) Tiêu chuẩn đánh giá Phát hiện ra — nguyên văn theo Bảng-2
   function gDetectionTable() {
-    return G_PENDING + '<table class="guide-table"><thead><tr><th>Rank D</th><th>Khả năng phát hiện</th><th>Phương pháp kiểm soát tham khảo</th></tr></thead><tbody>'
-      + '<tr><td class="s-rank s-10">10</td><td>Gần như không phát hiện được</td><td>Không kiểm tra / kiểm tra ngẫu nhiên không đáng tin</td></tr>'
-      + '<tr><td class="s-rank s-9">9</td><td>Rất khó phát hiện</td><td>Chỉ quan sát bằng mắt thường</td></tr>'
-      + '<tr><td class="s-rank s-8">8</td><td>Khó phát hiện</td><td>Kiểm tra thị giác kép / dùng ảnh chuẩn</td></tr>'
-      + '<tr><td class="s-rank s-7">7</td><td>Thấp</td><td>Đo thủ công bằng thước/caliper; gá go–no/go đơn giản</td></tr>'
-      + '<tr><td class="s-rank s-6">6</td><td>Trung bình thấp</td><td>Đo bằng dụng cụ chuyên dụng thủ công</td></tr>'
-      + '<tr><td class="s-rank s-5">5</td><td>Trung bình</td><td>SPC / đo tự động sau công đoạn</td></tr>'
-      + '<tr><td class="s-rank s-4">4</td><td>Tương đối cao</td><td>Phát hiện ngay trong công đoạn bằng cảm biến tự động</td></tr>'
-      + '<tr><td class="s-rank s-3">3</td><td>Cao</td><td>Kiểm tra 100% tự động sớm trong công đoạn</td></tr>'
-      + '<tr><td class="s-rank s-2">2</td><td>Rất cao</td><td>Kiểm tra 100% tự động + cảnh báo; jig kiểm lỗi</td></tr>'
-      + '<tr><td class="s-rank s-1">1</td><td>Chắc chắn phát hiện / phòng tránh</td><td>Poka-yoke: không thể xảy ra hoặc không thể lọt qua</td></tr>'
+    return G_OFFICIAL + '<table class="guide-table guide-d-table"><thead><tr><th>Rank D</th><th>Cơ hội phát hiện ra</th><th>Tiêu chuẩn: phương pháp phát hiện</th><th>Khả năng</th></tr></thead><tbody>'
+      + '<tr><td class="s-rank s-10">10</td><td>Không có cơ hội phát hiện ra</td><td>Không quản lý công đoạn hiện tại. Không thể phát hiện ra hoặc không thể phân tích được</td><td>Hầu như không thể</td></tr>'
+      + '<tr><td class="s-rank s-9">9</td><td>Ở bất kỳ giai đoạn nào, khả năng phát hiện gần như không có (VD: đánh giá xác suất)</td><td>Không thể dễ dàng phát hiện ra dạng hỏng hóc và/hoặc lỗi (nguyên nhân)</td><td>Rất ít</td></tr>'
+      + '<tr><td class="s-rank s-8">8</td><td><b>Sau khi kết thúc gia công</b></td><td>Phát hiện dạng hỏng hóc sau khi kết thúc gia công bằng <b>thị giác / xúc giác / thính giác</b> của người thao tác</td><td>Ít</td></tr>'
+      + '<tr><td class="s-rank s-7">7</td><td><b>Tại thời điểm phát sinh</b></td><td>Phát hiện bằng <b>giác quan người</b> tại hiện trường phát sinh; hoặc dưỡng <b>GO/NO-GO</b> sau khi kết thúc gia công</td><td>Rất thấp</td></tr>'
+      + '<tr><td class="s-rank s-6">6</td><td><b>Sau khi kết thúc gia công</b></td><td>Phát hiện bằng <b>dưỡng đo giá trị số</b> sau gia công; hoặc dưỡng GO/NO-GO tại hiện trường phát sinh</td><td>Thấp</td></tr>'
+      + '<tr><td class="s-rank s-5">5</td><td><b>Tại thời điểm phát sinh</b></td><td>Dưỡng đo giá trị số tại hiện trường; hoặc <b>quản lý tự động</b> báo đèn/còi khi có linh kiện lỗi; kiểm tra 2 lần do người</td><td>Trung bình</td></tr>'
+      + '<tr><td class="s-rank s-4">4</td><td><b>Sau khi kết thúc gia công</b></td><td>Phát hiện dạng hỏng hóc bằng <b>quản lý tự động</b> sau gia công (chặn đứng, tránh gia công thêm)</td><td>Tương đối cao</td></tr>'
+      + '<tr><td class="s-rank s-3">3</td><td><b>Tại thời điểm phát sinh</b></td><td>Phát hiện dạng hỏng hóc bằng <b>quản lý tự động</b> tại hiện trường phát sinh (chặn đứng)</td><td>Cao</td></tr>'
+      + '<tr><td class="s-rank s-2">2</td><td>Phát hiện lỗi và/hoặc dự phòng vấn đề</td><td>Phát hiện <b>lỗi (nguyên nhân)</b> bằng quản lý tự động tại hiện trường — dự phòng việc sản xuất ra linh kiện lỗi</td><td>Rất cao</td></tr>'
+      + '<tr><td class="s-rank s-1">1</td><td>Không áp dụng phát hiện: dự phòng lỗi</td><td><b>Poka-yoke</b> — dự phòng lỗi bằng thiết kế đồ gá / máy / linh kiện nên không sản xuất ra linh kiện lỗi</td><td>Gần như chắc chắn phát hiện được</td></tr>'
+      + '</tbody></table>';
+  }
+
+  // Tiêu chuẩn thực hiện biện pháp đề xuất (theo file tiêu chuẩn của công ty)
+  function gActionTable() {
+    return '<table class="guide-table guide-action-table"><thead><tr><th style="min-width:120px">Phân loại</th><th style="min-width:160px">Tiêu chuẩn thực hiện biện pháp</th><th>Cách suy nghĩ khi thực hiện biện pháp đề xuất</th></tr></thead><tbody>'
+      + '<tr><td><b>Mức độ nghiêm trọng (S)</b></td><td style="text-align:center;font-weight:700">9 trở lên</td>'
+      + '<td>Khi cấp độ nghiêm trọng là <b>9 trở lên</b>, biện pháp đề xuất phải lấy cơ sở là <b>thay đổi thiết kế, thay đổi công đoạn</b>.<br><small>(Phòng chống “Lỗi làm mất chức năng cơ bản của xe — chạy, rẽ, dừng”, không điều khiển được mà không có dấu hiệu báo trước, và lỗi gây cháy/bốc khói/dẫn tới tai nạn.)</small></td></tr>'
+      + '<tr><td><b>Tần suất phát sinh (O)</b></td><td style="text-align:center;font-weight:700">4 trở lên</td>'
+      + '<td>Năng lực công đoạn <b>Cp và Cpk ≥ 1,33</b> là tiêu chuẩn của tập đoàn. Nếu đảm bảo được năng lực công đoạn thì tần suất phát sinh là từ <b>3 trở xuống</b>.</td></tr>'
+      + '<tr><td><b>Phát hiện ra (D)</b></td><td>TH1: S ≥ 7 <b>và</b> D ≥ 6<br>TH2: S ≤ 6 và (ngoài kiểm tra bằng giác quan) D ≥ 7</td>'
+      + '<td>Với các yếu tố ảnh hưởng dẫn tới tổn hại chức năng nghiêm trọng, thực hiện biện pháp giảm mức độ phát hiện ra <b>xuống dưới 5</b>.<br><small>(Lý do loại bỏ kiểm tra bằng giác quan: kiểm tra giác quan thuộc lĩnh vực tính thương phẩm, ít ảnh hưởng đến chức năng.)</small></td></tr>'
       + '</tbody></table>';
   }
 
@@ -1696,12 +1712,12 @@
   }
 
   // Định nghĩa các trang hướng dẫn (dữ liệu ví dụ từ CP G823-00)
-  function gPages() {
+  function gPagesThink() {
     return [
 
-      // ===== Trang 0: Tổng quan =====
+      // ===== Slide 1: Tổng thể =====
       {
-        tag: '', title: 'P-FMEA là gì? — Tổng quan format', menu: 'Tổng quan — Format P-FMEA',
+        tag: '', title: 'Tổng thể nội dung P-FMEA', menu: 'Tổng thể — Format P-FMEA',
         full: true,
         body:
           '<div class="g-block"><p><strong>P-FMEA</strong> (Process Failure Mode and Effects Analysis) là phương pháp phân tích có hệ thống nhằm phát hiện và đánh giá các <em>dạng hỏng hóc tiềm ẩn</em> của quá trình sản xuất, từ đó đưa ra biện pháp kiểm soát và cải tiến phòng ngừa <em>trước khi</em> sản xuất hàng loạt.</p>'
@@ -1729,76 +1745,14 @@
           + '<li><b>M→S</b> — Biện pháp đề xuất, kết quả xử lý, S′/O′/D′/RPN′</li>'
           + '</ol></div>'
           + '<div class="g-block"><h5>🧭 Cách dùng tab Hướng dẫn này</h5><ul style="font-size:13px;line-height:1.8">'
-          + '<li>Chuyển trang bằng <b>‹ Trang trước</b> / <b>Trang sau ›</b>, hoặc chọn nhanh ở ô danh sách.</li>'
-          + '<li>Mỗi trang cột: <b>bên trái</b> hiện tên cột + ví dụ G823-00; <b>bên phải</b> là cách hiểu &amp; cách làm.</li>'
-          + '<li>Ô nền xám trong bảng P-FMEA = cột <b>tự động điền</b> từ CP — vẫn có thể chỉnh tay.</li>'
+          + '<li>Hướng dẫn có <b>2 lựa chọn</b> (nút chọn ở phía trên): <b>🧠 Hiểu &amp; tư duy đúng</b> — giải thích ý nghĩa &amp; cách tư duy từng cột; và <b>🖱️ Thao tác trên web</b> — các bước thực hiện trực tiếp trên công cụ.</li>'
+          + '<li>Chuyển slide bằng <b>‹ Trang trước</b> / <b>Trang sau ›</b>, hoặc chọn nhanh ở ô danh sách.</li>'
+          + '<li>Mỗi slide cột: <b>bên trái</b> hiện tên cột + ví dụ thực tế từ P-FMEA <b>G823-00</b> (Damper case comp); <b>bên phải</b> là cách hiểu &amp; cách tư duy.</li>'
+          + '<li>Toàn bộ điểm S / O / D chấm theo <b>Bảng-2 Tiêu chuẩn đánh giá P-FMEA (GL SQS0811)</b>.</li>'
           + '</ul></div>',
       },
 
-      // ===== Trang 1: Cách sử dụng công cụ =====
-      {
-        tag: '', title: 'Cách sử dụng công cụ (6 bước)', menu: 'Cách sử dụng công cụ',
-        full: true,
-        body:
-          '<ul class="guide-steps">'
-
-          + '<li><span class="step-num">1</span><div>'
-          + '<strong>Chọn thông tin dự án</strong><br>'
-          + 'Chọn <b>Bộ phận → Sản phẩm → Dây chuyền</b> ở thanh trên. Nhập <b>Model</b> (ví dụ: <code>G823-00</code>).<br>'
-          + '<b style="color:#c00">⚠ Quan trọng:</b> thay đổi Bộ phận / Sản phẩm / Dây chuyền sẽ tạo P-FMEA <em>mới hoàn toàn</em> — dữ liệu đang nhập bị xóa. Hãy chọn đúng trước khi tải CP.'
-          + '</div></li>'
-
-          + '<li><span class="step-num">2</span><div>'
-          + '<strong>Tải file Control Plan (.xlsx)</strong><br>'
-          + 'Nhấn <b>📂 Tải Control Plan</b> → chọn file CP xuất từ hệ thống. Tool tự đọc <em>tất cả sheet</em> trong file và báo số công đoạn tìm thấy.<br>'
-          + '<span style="color:var(--muted)">Tên sheet trong CP <b>không</b> ảnh hưởng đến số thứ tự hay tên công đoạn trong P-FMEA.</span>'
-          + '</div></li>'
-
-          + '<li><span class="step-num">3</span><div>'
-          + '<strong>Nạp công đoạn vào bảng P-FMEA</strong><br>'
-          + 'Nhấn <b>＋ Nạp tất cả công đoạn vào P-FMEA</b>. Tool tự động điền:<br>'
-          + '<ul>'
-          + '<li>Tên công đoạn, chức năng (từ CP) → có thể chỉnh</li>'
-          + '<li>Yêu cầu chất lượng (Hạng mục quản lý trong CP) → cột A</li>'
-          + '<li>Dạng hỏng hóc → cột B:<br>'
-          + '&nbsp;&nbsp;• Dung sai <b>2 phía</b> (VD: <code>203.3(+0.3/-1.1)</code>) → <b>2 dạng hỏng</b>: “lớn hơn” &amp; “nhỏ hơn tiêu chuẩn”<br>'
-          + '&nbsp;&nbsp;• Max / min / 1 phía / văn bản → <b>1 dạng hỏng</b>: “không đạt”</li>'
-          + '<li>Ký hiệu SC đặc tính đặc thù → cột E</li>'
-          + '<li>Phương pháp + tần suất kiểm tra → ô ② cột J (phát hiện)</li>'
-          + '</ul>'
-          + '</div></li>'
-
-          + '<li><span class="step-num">4</span><div>'
-          + '<strong>(Tùy chọn) Cung cấp bối cảnh cho AI</strong><br>'
-          + 'Nhấn <b>🧠 Cung cấp thêm bối cảnh cho AI</b> → điền API key Gemini (miễn phí tại <b>aistudio.google.com/apikey</b>) và mô tả bộ phận / máy móc / quy trình.<br>'
-          + 'Khi có bối cảnh, nhấn <b>✨ AI</b> trong từng ô để nhận gợi ý phân tích nguyên nhân, ảnh hưởng. Key Gemini lưu trong trình duyệt của bạn, <b>không gửi về server</b>.'
-          + '</div></li>'
-
-          + '<li><span class="step-num">5</span><div>'
-          + '<strong>Phân tích từng cột theo thứ tự A → M</strong><br>'
-          + '<ul>'
-          + '<li>Ô nền <b>xám nhạt</b> = tự động điền từ CP — vẫn chỉnh được.</li>'
-          + '<li><b>Cột C:</b> nhấn chọn câu kết luận từ bảng tiêu chuẩn → điểm S tự điền.</li>'
-          + '<li><b>Cột B:</b> nhấn <b>🔗 Gộp</b> để gộp các dạng hỏng tương tự (cùng nhóm kích thước) → ô phát hiện ② sẽ tự viết câu chung: <em>”Kiểm tra các kích thước bằng… theo tần suất…”</em></li>'
-          + '<li><b>Cột J — ô ③:</b> chỉ xuất hiện khi hạng mục có SC (S, A…) → điền biện pháp kiểm tra đặc biệt tại đây.</li>'
-          + '<li>Ô bị viền đỏ = cần thực hiện biện pháp đề xuất theo tiêu chuẩn.</li>'
-          + '</ul>'
-          + '</div></li>'
-
-          + '<li><span class="step-num">6</span><div>'
-          + '<strong>Lưu &amp; Xuất Excel</strong><br>'
-          + '<ul>'
-          + '<li><b>💾 Lưu</b> → lưu vào bộ nhớ trình duyệt (tự phân theo Bộ phận / Sản phẩm / Dây chuyền).</li>'
-          + '<li><b>⬇ Xuất Excel (.xlsx)</b> → xuất file theo form chuẩn công ty, giữ nguyên định dạng A4.</li>'
-          + '<li><b>⬇ Sao lưu</b> → tải file JSON để sao lưu ngoài trình duyệt; <b>⬆ Nạp sao lưu</b> → phục hồi.</li>'
-          + '<li><b>Model base:</b> chọn model đã lưu trước để tham khảo hoặc copy sang model mới.</li>'
-          + '</ul>'
-          + '</div></li>'
-
-          + '</ul>',
-      },
-
-      // ===== Trang 2: Cột A =====
+      // ===== Slide 2: Cột A =====
       {
         tag: 'A', title: 'Cột A — Quy trình / Bước / Chức năng / Yêu cầu',
         body:
@@ -1886,33 +1840,15 @@
           + '<div class="g-block"><h5>📊 Bảng tiêu chuẩn S — Ảnh hưởng đến SẢN PHẨM</h5>' + gSeverityTable('product') + '</div>',
       },
 
-      // ===== Trang 6: Cột E (SC) =====
-      {
-        tag: 'E', title: 'Cột E — Phân loại (Đặc tính đặc thù)',
-        body:
-          '<div class="g-block"><h5>🔎 Cách hiểu</h5>'
-          + '<p>Cột E ghi <b>ký hiệu đặc tính đặc thù</b> (Special Characteristic — SC) của hạng mục. Đây là những đặc tính ảnh hưởng đến an toàn hoặc chức năng chính của sản phẩm, cần quản lý đặc biệt nghiêm ngặt.</p>'
-          + '<p>Ký hiệu SC thường dùng: <b>S</b> (Safety), <b>A</b> (Critical), <b>◎</b> (đặc tính quan trọng)… — tùy quy định từng dự án/bản vẽ.</p></div>'
-          + '<div class="g-block"><h5>✍️ Cách làm</h5><ul>'
-          + '<li>Ký hiệu phải <b>khớp với bản vẽ và Control Plan</b> — không tự gán hoặc suy đoán.</li>'
-          + '<li>Tool <b>tự động điền</b> ký hiệu SC từ cột “Đặc tính đặc thù (S.C)” trong CP khi nạp.</li>'
-          + '<li>Kiểm tra lại đối chiếu bản vẽ sau khi nạp.</li>'
-          + '</ul></div>'
-          + '<div class="g-eg"><b>Ví dụ G823-00:</b><br>'
-          + 'Hạng mục “Độ kín khí” trong công đoạn HÀN CAP có ký hiệu <b>S</b> trong CP → cột E hiển thị chữ <b>S</b> to (font Yu Gothic UI Semibold), căn giữa.<br><br>'
-          + '<b>Hệ quả khi có SC:</b><br>'
-          + '• Ô <b>③ trong cột J</b> (Phát hiện ra) xuất hiện thêm — điền biện pháp kiểm tra đặc biệt (VD: kiểm tra 100% bằng thiết bị đo khí nén).<br>'
-          + '• Biện pháp phát hiện phải đáp ứng tiêu chuẩn cao hơn bình thường.</div>',
-      },
-
-      // ===== Trang 7: Cột F (Nguyên nhân) =====
+      // ===== Slide 6: Cột F (Nguyên nhân) =====
       {
         tag: 'F', title: 'Cột F — Nguyên nhân của hỏng hóc (Phân tích 4M)',
         body:
           '<div class="g-block"><h5>🔎 Cách hiểu</h5>'
-          + '<p>Cột F đòi hỏi <b>kiến thức thực tế về dây chuyền sản xuất</b>. Phải tìm ra các <b>nguyên nhân gốc rễ</b> có thể gây ra dạng hỏng hóc đã nêu ở cột B.</p></div>'
+          + '<p>Cột F đòi hỏi <b>kiến thức thực tế về dây chuyền sản xuất</b>. Phải tìm ra các <b>nguyên nhân gốc rễ</b> có thể gây ra dạng hỏng hóc đã nêu ở cột B.</p>'
+          + '<p>⚙ <b>Nguyên tắc cốt lõi:</b> nguyên nhân phải dựa trên <b>các điều kiện chế tạo của công đoạn</b>. Chỉ khi một <em>điều kiện chế tạo không đạt tiêu chuẩn</em> thì mới phát sinh ra dạng hỏng hóc. Vì vậy hãy đi từ điều kiện chế tạo (thông số máy, gá lắp, vật liệu đầu vào, thao tác chuẩn…) — điều kiện nào sai lệch sẽ trở thành nguyên nhân.</p></div>'
           + '<div class="g-block"><h5>✍️ Cách làm — Rà soát lần lượt 4M</h5>'
-          + '<p>Phân tích lần lượt <b>4 nhóm nguyên nhân</b>. Một dạng hỏng không nhất thiết có đủ cả 4 nhóm, nhưng phải <em>tư duy theo từng nhóm</em> để không bỏ sót:</p></div>'
+          + '<p>Soi từng <b>điều kiện chế tạo</b> theo <b>4 nhóm nguyên nhân</b>. Một dạng hỏng không nhất thiết có đủ cả 4 nhóm, nhưng phải <em>tư duy theo từng nhóm</em> để không bỏ sót:</p></div>'
           + '<div class="guide-4m-grid">'
           + '<div class="guide-4m-card m-man"><div class="m-title">👤 Man — Con người</div>'
           + '<p>Thao tác sai, thiếu kỹ năng, không theo SOP, mệt mỏi, nhầm lẫn…</p>'
@@ -1944,7 +1880,24 @@
           + '<div class="g-block"><h5>📊 Bảng tiêu chuẩn đánh giá tần suất phát sinh</h5>' + gOccurrenceTable() + '</div>',
       },
 
-      // ===== Trang 9: Cột I (Dự phòng) =====
+      // ===== Slide 8: Cột G (Phản ánh lỗi quá khứ) =====
+      {
+        tag: 'G', title: 'Cột G — Phản ánh lỗi quá khứ',
+        body:
+          '<div class="g-block"><h5>🔎 Cách hiểu</h5>'
+          + '<p>Cột G đánh dấu những <b>nguyên nhân đã từng phát sinh lỗi trong thực tế</b> (lỗi quá khứ). Mục đích: ưu tiên kiểm soát các nguyên nhân đã có tiền lệ, không để lỗi cũ lặp lại.</p></div>'
+          + '<div class="g-block"><h5>✍️ Cách làm</h5><ul>'
+          + '<li>Nguyên nhân nào <b>đã từng phát sinh</b> (có lịch sử lỗi, claim, NG thực tế) → điền ký hiệu <b>“o”</b> vào ô tương ứng.</li>'
+          + '<li>Nguyên nhân <b>chưa từng phát sinh</b> → để trống.</li>'
+          + '<li>Căn cứ: hồ sơ lỗi nội bộ, báo cáo 4M change, claim khách hàng, dữ liệu NG của công đoạn.</li>'
+          + '</ul></div>'
+          + '<div class="g-eg"><b>Ví dụ G823-00 — công đoạn HÀN CAP:</b><br>'
+          + 'Nguyên nhân <i>“Máy hàn lệch tọa độ trục Z”</i> đã từng gây lỗi chiều cao tổng trong quá khứ → điền <b>“o”</b>.<br>'
+          + 'Nguyên nhân <i>“Bề mặt hàn nhiễm dầu”</i> chưa từng phát sinh → để trống.</div>'
+          + '<div class="guide-note">💡 Cột G giúp người xét duyệt nhận diện nhanh các điểm rủi ro đã có tiền lệ — thường đi kèm yêu cầu siết chặt biện pháp dự phòng (cột I) và phát hiện (cột J).</div>',
+      },
+
+      // ===== Slide 9: Cột I (Dự phòng) =====
       {
         tag: 'I', title: 'Cột I — Quản lý hiện tại: Dự phòng',
         body:
@@ -1985,19 +1938,23 @@
           + '<div class="g-block"><h5>📊 Bảng tiêu chuẩn đánh giá phát hiện (D)</h5>' + gDetectionTable() + '</div>',
       },
 
-      // ===== Trang 11: Cột K (D score) =====
+      // ===== Slide 10: Cột K (D score) =====
       {
         tag: 'K', title: 'Cột K — Phát hiện ra (D)',
         body:
           '<div class="g-block"><h5>🔎 Cách hiểu</h5>'
           + '<p>Điểm <b>D (Detection)</b> đánh giá <b>khả năng phát hiện</b> dạng hỏng hóc hoặc nguyên nhân <em>trước khi</em> sản phẩm lỗi đến công đoạn sau hoặc tay khách hàng. D = 1 chắc chắn phát hiện, D = 10 gần như không phát hiện được.</p></div>'
-          + '<div class="g-block"><h5>✍️ Cách làm</h5><ul>'
-          + '<li>Chấm dựa trên <b>phương pháp kiểm soát hiện tại</b> đã ghi ở cột J.</li>'
+          + '<div class="g-block"><h5>✍️ Cách làm — chọn đúng "cơ hội phát hiện"</h5>'
+          + '<p>Trước khi chấm điểm, xác định dạng hỏng được phát hiện <b>ở đâu</b> — đây là cột "Cơ hội phát hiện ra" trong bảng tiêu chuẩn:</p><ul>'
+          + '<li>Phát hiện <b>ngay tại công đoạn đang làm</b> → chấm theo dòng <b>“tại hiện trường phát sinh”</b> (điểm D thấp hơn — lẻ: 3, 5, 7).</li>'
+          + '<li>Phát hiện <b>ở công đoạn sau / sau khi rời công đoạn</b> → chấm theo dòng <b>“sau khi kết thúc gia công”</b> (điểm D cao hơn — chẵn: 4, 6, 8).</li>'
+          + '</ul></div>'
+          + '<div class="g-block"><h5>✍️ Mức điểm theo phương pháp kiểm soát</h5><ul>'
           + '<li>Kiểm tra bằng <b>giác quan</b> (mắt nhìn, tay sờ, đếm số) → D = 7–9 vì độ tin cậy thấp.</li>'
-          + '<li>Kiểm tra bằng <b>dụng cụ đo thủ công</b> (thước, caliper) → D = 5–7.</li>'
-          + '<li>Kiểm tra <b>tự động / cảm biến / SPC</b> → D = 3–5.</li>'
-          + '<li>Kiểm tra <b>100% tự động + cảnh báo</b> → D = 2.</li>'
-          + '<li><b>Poka-yoke</b> (không thể xảy ra hoặc không thể lọt qua) → D = 1.</li>'
+          + '<li>Kiểm tra bằng <b>dưỡng đo / dụng cụ thủ công</b> (thước, caliper, GO/NO-GO) → D = 5–7.</li>'
+          + '<li>Kiểm tra <b>tự động / cảm biến</b> chặn đứng → D = 3–4.</li>'
+          + '<li>Quản lý tự động phát hiện <b>lỗi (nguyên nhân)</b>, dự phòng sản xuất hàng lỗi → D = 2.</li>'
+          + '<li><b>Poka-yoke</b> (thiết kế chống lỗi, không thể xảy ra/lọt qua) → D = 1.</li>'
           + '</ul></div>'
           + '<div class="guide-note">💡 <b>Trường hợp đặc biệt S ≤ 6 và D ≥ 7:</b> Nếu D cao do bản chất phương pháp kiểm tra <b>bằng giác quan</b> và không thể thay thế bằng thiết bị tự động (VD: kiểm tra màu sắc, ngoại quan phức tạp), tình trạng này có thể chấp nhận — không bắt buộc phải có biện pháp đề xuất để hạ D.</div>'
           + '<div class="g-block"><h5>📊 Bảng tiêu chuẩn đánh giá phát hiện</h5>' + gDetectionTable() + '</div>',
@@ -2015,31 +1972,131 @@
           + '<div class="g-block"><p>RPN <b>tự động tính</b> trong tool ngay khi nhập đủ S, O, D. RPN sau cải tiến (RPN′) cũng tự tính từ S′, O′, D′.</p></div>',
       },
 
-      // ===== Trang 13: Cột M (Biện pháp) =====
+      // ===== Slide 12: Cột M (Biện pháp) =====
       {
         tag: 'M', title: 'Cột M — Biện pháp đề xuất & Kết quả xử lý',
         body:
           '<div class="g-block"><h5>🔎 Cách hiểu</h5>'
           + '<p>Cột M ghi <b>biện pháp cải tiến</b> nhằm giảm S, O hoặc D. Kết quả sau khi thực hiện được ghi vào cột O (biện pháp đã làm) và cột P/Q/R/S (S′/O′/D′/RPN′).</p></div>'
-          + '<div class="g-block"><h5>✍️ Tiêu chí bắt buộc phải thực hiện biện pháp</h5>'
-          + '<p>Phải áp dụng <b>Tiêu chuẩn thực hiện biện pháp đề xuất của công ty</b>, <b>không</b> chỉ dựa vào RPN. Tiêu chí tham khảo phổ biến:</p>'
-          + '<table class="guide-table"><thead><tr><th>Điều kiện</th><th>Yêu cầu</th></tr></thead><tbody>'
-          + '<tr><td>S ≥ 7 <b>và</b> D ≥ 7</td><td>Bắt buộc có biện pháp đề xuất</td></tr>'
-          + '<tr><td>S ≥ 9 (bất kể O, D)</td><td>Bắt buộc + tổng hợp báo cáo lên công ty mẹ</td></tr>'
-          + '<tr><td>S ≤ 6 và D ≥ 7 (do giác quan)</td><td>Có thể chấp nhận — D cao do bản chất kiểm tra giác quan</td></tr>'
-          + '</tbody></table>'
-          + '<p style="font-size:12px;color:var(--muted);margin-top:6px">Trong tool: ô biện pháp đề xuất <b>viền đỏ</b> khi cần hành động theo tiêu chuẩn hiện tại.</p></div>'
+          + '<div class="g-block"><h5>✍️ Tiêu chuẩn thực hiện biện pháp đề xuất</h5>'
+          + '<p>Dựa vào <b>bảng tiêu chuẩn</b> dưới đây để xác định nội dung nào <b>bắt buộc</b> phải thực hiện biện pháp đề xuất (xét theo từng yếu tố S, O, D — <b>không</b> chỉ dựa vào RPN):</p>'
+          + gActionTable()
+          + '<p style="font-size:12px;color:var(--muted);margin-top:6px">Trong tool: ô biện pháp đề xuất <b>tô viền đỏ</b> khi hạng mục chạm ngưỡng cần hành động.</p></div>'
           + '<div class="g-block"><h5>✍️ Cách làm</h5><ul>'
           + '<li>Biện pháp phải cụ thể: <em>làm gì, ai làm, thời hạn nào</em>.</li>'
-          + '<li>Mục tiêu: giảm O (cải thiện dự phòng), giảm D (thêm kiểm soát tự động), hoặc giảm S (thay đổi thiết kế).</li>'
+          + '<li>Mục tiêu: giảm O (cải thiện dự phòng, đảm bảo Cp/Cpk ≥ 1,33), giảm D (thêm kiểm soát tự động — đưa D xuống dưới 5), hoặc giảm S (thay đổi thiết kế / công đoạn).</li>'
           + '<li>Sau khi thực hiện: ghi kết quả vào cột O, chấm lại S′/O′/D′ → RPN′ tự tính.</li>'
           + '</ul></div>'
           + '<div class="g-eg"><b>Ví dụ G823-00 — Chiều cao tổng (S=5, O=3, D=6 → RPN=90):</b><br>'
           + '<i>Biện pháp đề xuất:</i> “Bổ sung cảm biến đo chiều cao trong máy hàn, phát hiện 100% tự động ngay tại công đoạn”<br>'
           + '<i>Kết quả:</i> S′=5, O′=3, D′=2 → <b>RPN′ = 30</b></div>'
-          + '<div class="guide-pending">⚠ <b>Trường hợp S ≥ 9:</b> nếu S từ 9 trở lên do tính công nghệ R&amp;D thiết kế và không thể thay đổi, phải tổng hợp hạng mục đó vào trang tổng hợp đặc biệt và gửi sang <b>công ty mẹ tại Nhật xin phê duyệt</b>.</div>'
-          + '<div class="guide-pending">📄 <b>Bảng “Tiêu chuẩn thực hiện biện pháp đề xuất” chính thức</b> sẽ được cập nhật khi có file từ công ty.</div>',
+          + '<div class="guide-note">⚠ <b>Bắt buộc phê duyệt công ty mẹ:</b> Nếu <b>không có biện pháp đề xuất</b> nào để giảm được điểm <b>S, O hoặc D</b> về ngưỡng tiêu chuẩn (ví dụ S ≥ 9 do tính công nghệ thiết kế R&amp;D, không thể thay đổi bằng cải tiến sản xuất), thì phải tổng hợp hạng mục đó và <b>gửi xin phê duyệt từ công ty mẹ</b> trước khi chốt.</div>',
       },
+    ];
+  }
+
+  // ===================================================================
+  // Chế độ 2: CÁCH THAO TÁC TRỰC TIẾP TRÊN WEB
+  // ===================================================================
+  function gPagesWeb() {
+    return [
+
+      // ----- Web slide 1: Quy trình 6 bước -----
+      {
+        tag: '', title: 'Quy trình thao tác (6 bước)', menu: 'Quy trình 6 bước',
+        full: true,
+        body:
+          '<ul class="guide-steps">'
+          + '<li><span class="step-num">1</span><div>'
+          + '<strong>Chọn thông tin dự án</strong><br>'
+          + 'Ở thanh trên chọn <b>Bộ phận → Sản phẩm → Dây chuyền</b>, rồi nhập <b>Model</b> (VD: <code>G823-00</code>).<br>'
+          + '<b style="color:#c00">⚠ Quan trọng:</b> đổi Bộ phận / Sản phẩm / Dây chuyền sẽ tạo P-FMEA <em>mới hoàn toàn</em> — dữ liệu đang nhập bị xóa. Chọn đúng <b>trước</b> khi tải CP.'
+          + '</div></li>'
+          + '<li><span class="step-num">2</span><div>'
+          + '<strong>Tải file Control Plan (.xlsx)</strong><br>'
+          + 'Nhấn <b>📂 Tải Control Plan</b> → chọn file CP. Tool tự đọc <em>tất cả sheet</em> và báo số công đoạn tìm thấy.<br>'
+          + '<span style="color:var(--muted)">Tên sheet trong CP không ảnh hưởng đến STT/tên công đoạn trong P-FMEA.</span>'
+          + '</div></li>'
+          + '<li><span class="step-num">3</span><div>'
+          + '<strong>Nạp công đoạn vào bảng</strong><br>'
+          + 'Nhấn <b>＋ Nạp tất cả công đoạn vào P-FMEA</b> → tool tự dựng bảng và điền sẵn các cột tự động (xem slide “Cột tự động”).'
+          + '</div></li>'
+          + '<li><span class="step-num">4</span><div>'
+          + '<strong>(Tùy chọn) Bật AI hỗ trợ</strong><br>'
+          + 'Nhấn <b>🧠 Cung cấp thêm bối cảnh cho AI</b> → dán API key Gemini (miễn phí tại <b>aistudio.google.com/apikey</b>) và mô tả bộ phận / máy móc / quy trình. Key lưu trong trình duyệt, <b>không gửi về server</b>.'
+          + '</div></li>'
+          + '<li><span class="step-num">5</span><div>'
+          + '<strong>Phân tích &amp; điền các cột tự làm</strong><br>'
+          + 'Đi từ trái sang phải, điền các cột tool không tự điền được (ảnh hưởng, nguyên nhân, O, dự phòng, phát hiện, D, biện pháp). Xem slide “Cột phải tự phân tích”.'
+          + '</div></li>'
+          + '<li><span class="step-num">6</span><div>'
+          + '<strong>Lưu &amp; Xuất Excel</strong><br>'
+          + '<ul>'
+          + '<li><b>💾 Lưu</b> → lưu vào trình duyệt (tự phân theo Bộ phận / Sản phẩm / Dây chuyền).</li>'
+          + '<li><b>⬇ Xuất Excel (.xlsx)</b> → xuất theo form chuẩn công ty, giữ định dạng A4.</li>'
+          + '<li><b>⬇ Sao lưu / ⬆ Nạp sao lưu</b> → tải/khôi phục file JSON ngoài trình duyệt.</li>'
+          + '<li><b>Model base</b> → chọn model đã lưu để tham khảo / copy sang model mới.</li>'
+          + '</ul>'
+          + '</div></li>'
+          + '</ul>',
+      },
+
+      // ----- Web slide 2: Cần tải gì & chọn gì -----
+      {
+        tag: '', title: 'Cần tải gì lên & chọn gì', menu: 'Tải gì · Chọn gì',
+        full: true,
+        body:
+          '<div class="g-block"><h5>📤 File cần tải lên</h5><ul>'
+          + '<li><b>Control Plan (.xlsx)</b> — bắt buộc. Đây là nguồn dữ liệu chính để tool rút hạng mục chất lượng, dạng hỏng, SC và phương pháp kiểm tra.</li>'
+          + '<li><b>File sao lưu (.json)</b> — tùy chọn, chỉ khi muốn khôi phục một P-FMEA đã làm dở trước đó.</li>'
+          + '</ul></div>'
+          + '<div class="g-block"><h5>🔽 Cần chọn / nhập gì</h5>'
+          + '<table class="guide-table"><thead><tr><th>Mục</th><th>Ý nghĩa</th></tr></thead><tbody>'
+          + '<tr><td><b>Bộ phận</b></td><td>Phân xưởng đang lập P-FMEA (VD: PRO2). Quyết định cây dữ liệu Sản phẩm/Dây chuyền.</td></tr>'
+          + '<tr><td><b>Sản phẩm</b></td><td>Loại sản phẩm (VD: giảm xóc / damper case comp).</td></tr>'
+          + '<tr><td><b>Dây chuyền</b></td><td>Dây chuyền cụ thể trong bộ phận.</td></tr>'
+          + '<tr><td><b>Model</b></td><td>Mã model (VD: G823-00). Dùng để lưu &amp; tra cứu.</td></tr>'
+          + '</tbody></table>'
+          + '<p style="color:var(--muted);font-size:12px;margin-top:6px">Bộ ba Bộ phận / Sản phẩm / Dây chuyền là “khóa” phân loại — đổi bộ ba này = mở P-FMEA khác.</p></div>'
+          + '<div class="guide-note">💡 Đảm bảo CP đúng định dạng chuẩn (có cột Hạng mục quản lý, Spec/dung sai, Đặc tính đặc thù SC, Phương pháp &amp; tần suất kiểm tra) thì tool mới rút đủ dữ liệu.</div>',
+      },
+
+      // ----- Web slide 3: Cột tự động -----
+      {
+        tag: '', title: 'Chỗ nào TỰ ĐỘNG (tool tự điền)', menu: 'Cột tự động',
+        full: true,
+        body:
+          '<div class="g-block"><p>Sau khi nạp CP, tool <b>tự điền</b> các cột sau (ô nền <b>xám nhạt</b>). Vẫn chỉnh tay được nếu cần:</p>'
+          + '<table class="guide-table"><thead><tr><th>Cột</th><th>Tool tự làm gì</th></tr></thead><tbody>'
+          + '<tr><td><b>A</b> — Công đoạn / Yêu cầu</td><td>Điền STT, tên công đoạn, chức năng và danh sách <b>yêu cầu</b> từ CP.</td></tr>'
+          + '<tr><td><b>B</b> — Dạng hỏng hóc</td><td>Tạo dạng hỏng từ yêu cầu: dung sai <b>2 phía</b> → 2 dạng (“lớn hơn”/“nhỏ hơn”); 1 phía/văn bản → 1 dạng (“không đạt”).</td></tr>'
+          + '<tr><td><b>D</b> — Điểm S</td><td><b>Tự điền</b> ngay khi bạn chọn câu kết luận ảnh hưởng ở cột C (theo bảng tiêu chuẩn S).</td></tr>'
+          + '<tr><td><b>E</b> — Phân loại (SC)</td><td>Điền ký hiệu đặc tính đặc thù (S, A…) từ cột S.C trong CP. Có SC → mở thêm ô ③ ở cột J.</td></tr>'
+          + '<tr><td><b>J</b> — ô ②</td><td>Điền sẵn phương pháp + tần suất kiểm tra của hạng mục (từ CP).</td></tr>'
+          + '<tr><td><b>L / S′</b> — RPN</td><td><b>Tự tính</b> S×O×D và RPN′ = S′×O′×D′ ngay khi đủ số.</td></tr>'
+          + '</tbody></table></div>'
+          + '<div class="guide-note">💡 Nút <b>🔗 Gộp</b> ở cột B: gộp các dạng hỏng cùng nhóm (cùng kiểu kích thước, cùng cách kiểm tra) → ô phát hiện ② tự viết câu chung “Kiểm tra các kích thước … theo tần suất …”.</div>',
+      },
+
+      // ----- Web slide 4: Cột tự phân tích -----
+      {
+        tag: '', title: 'Chỗ nào PHẢI TỰ PHÂN TÍCH', menu: 'Cột phải tự phân tích',
+        full: true,
+        body:
+          '<div class="g-block"><p>Các cột dưới đây cần <b>kiến thức thực tế</b> về dây chuyền — tool/AI chỉ <em>gợi ý</em>, người làm phải quyết định:</p>'
+          + '<table class="guide-table"><thead><tr><th>Cột</th><th>Bạn phải làm</th></tr></thead><tbody>'
+          + '<tr><td><b>C</b> — Ảnh hưởng</td><td>Phân tích ảnh hưởng đến công đoạn &amp; sản phẩm, rồi <b>chọn câu kết luận</b> từ dropdown (→ S tự điền).</td></tr>'
+          + '<tr><td><b>F</b> — Nguyên nhân</td><td>Liệt kê nguyên nhân theo <b>4M</b>, dựa trên điều kiện chế tạo thực tế. Nút <b>✨ AI</b> gợi ý.</td></tr>'
+          + '<tr><td><b>G</b> — Lỗi quá khứ</td><td>Điền <b>“o”</b> cho nguyên nhân đã từng phát sinh.</td></tr>'
+          + '<tr><td><b>H</b> — Điểm O</td><td>Chấm tần suất phát sinh theo bảng tiêu chuẩn + dữ liệu lỗi thực tế.</td></tr>'
+          + '<tr><td><b>I</b> — Dự phòng</td><td>Ghi biện pháp ngăn nguyên nhân, đang áp dụng thực tế tại hiện trường.</td></tr>'
+          + '<tr><td><b>J</b> — ô ① &amp; ③</td><td>① cách phát hiện nguyên nhân; ③ kiểm tra đặc biệt cho hạng mục có SC.</td></tr>'
+          + '<tr><td><b>K</b> — Điểm D</td><td>Chấm khả năng phát hiện theo bảng tiêu chuẩn (tại hiện trường / sau gia công).</td></tr>'
+          + '<tr><td><b>M</b> — Biện pháp</td><td>Đề xuất biện pháp khi chạm ngưỡng (ô viền đỏ); ghi kết quả S′/O′/D′.</td></tr>'
+          + '</tbody></table></div>'
+          + '<div class="guide-note">💡 Chi tiết cách tư duy từng cột xem ở lựa chọn <b>🧠 Hiểu &amp; tư duy đúng</b> phía trên.</div>',
+      },
+
     ];
   }
 
@@ -2068,15 +2125,30 @@
   }
 
   function setupGuide() {
-    GUIDE_PAGES = gPages();
+    let currentMode = 'think';
     const jump = $('#guideJump');
-    jump.innerHTML = GUIDE_PAGES.map((p, i) =>
-      '<option value="' + i + '">' + esc((i === 0 ? '' : (i) + '. ') + (p.menu || ((p.tag ? p.tag + ' — ' : '') + p.title))) + '</option>'
-    ).join('');
+
+    function loadMode(mode) {
+      currentMode = mode;
+      GUIDE_PAGES = mode === 'web' ? gPagesWeb() : gPagesThink();
+      jump.innerHTML = GUIDE_PAGES.map((p, i) =>
+        '<option value="' + i + '">' + esc((i === 0 ? '' : (i) + '. ') + (p.menu || ((p.tag ? p.tag + ' — ' : '') + p.title))) + '</option>'
+      ).join('');
+      renderGuidePage(0);
+      document.querySelectorAll('.guide-mode-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.mode === mode);
+      });
+    }
+
     jump.addEventListener('change', () => renderGuidePage(parseInt(jump.value, 10) || 0));
     $('#guidePrev').addEventListener('click', () => renderGuidePage(GUIDE_IDX - 1));
     $('#guideNext').addEventListener('click', () => renderGuidePage(GUIDE_IDX + 1));
-    renderGuidePage(0);
+
+    document.querySelectorAll('.guide-mode-btn').forEach(b => {
+      b.addEventListener('click', () => loadMode(b.dataset.mode));
+    });
+
+    loadMode('think');
   }
 
   document.addEventListener('DOMContentLoaded', init);

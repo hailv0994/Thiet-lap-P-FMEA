@@ -550,3 +550,81 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
   padding: 1px 6px; font-size: 10px; font-weight: 700; margin-bottom: 3px;
 }
 .guide-format-table th.ff-grp { background: var(--head-2); }
+
+/* ---------- Guide: mode toggle ---------- */
+.guide-mode-btns {
+  display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;
+}
+.guide-mode-btn {
+  padding: 7px 18px; border-radius: 20px; border: 2px solid var(--line-strong);
+  background: var(--panel); color: var(--ink-soft); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+.guide-mode-btn:hover { border-color: var(--ink); color: var(--ink); }
+.guide-mode-btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+/* ---------- Guide: official standard banner ---------- */
+.guide-official {
+  background: #eef4ff; border: 1px solid #b8cef0; border-radius: 5px;
+  padding: 9px 13px; font-size: 12.5px; color: #1a4080; margin: 10px 0; line-height: 1.5;
+}
+
+/* ---------- Guide: action criteria table ---------- */
+.guide-action-table {
+  width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px;
+}
+.guide-action-table th {
+  background: var(--head); text-align: center; padding: 8px 10px;
+  border: 1px solid var(--line-strong); font-weight: 600; font-size: 12px;
+}
+.guide-action-table td {
+  padding: 7px 10px; border: 1px solid var(--line);
+  vertical-align: top; line-height: 1.55; color: var(--ink-soft);
+}
+.guide-action-table .act-trigger { font-weight: 700; color: #c00; text-align: center; }
+.guide-action-table .act-note { font-size: 11.5px; color: var(--muted); }
+
+/* ---------- Guide: detection table ---------- */
+.guide-d-table {
+  width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px;
+}
+.guide-d-table th {
+  background: var(--head); text-align: center; padding: 7px 8px;
+  border: 1px solid var(--line-strong); font-weight: 600; font-size: 11.5px; white-space: nowrap;
+}
+.guide-d-table td {
+  padding: 6px 9px; border: 1px solid var(--line);
+  vertical-align: top; line-height: 1.5; color: var(--ink-soft);
+}
+.guide-d-table .d-rank { font-weight: 700; text-align: center; font-size: 13px; color: var(--ink); }
+.guide-d-table .d-grp { background: var(--head-2); font-weight: 600; color: var(--ink); font-size: 11.5px; }
+
+/* ---------- Guide: web mode slides ---------- */
+.guide-web-step {
+  display: flex; gap: 16px; align-items: flex-start;
+  padding: 14px 16px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 7px; margin-bottom: 12px;
+}
+.guide-web-step .ws-num {
+  min-width: 34px; height: 34px; border-radius: 50%;
+  background: var(--ink); color: #fff; font-size: 15px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.guide-web-step .ws-body { font-size: 13.5px; line-height: 1.7; color: var(--ink-soft); }
+.guide-web-step .ws-body strong { color: var(--ink); }
+.guide-web-step .ws-body ul { margin: 6px 0 0; padding-left: 18px; }
+.guide-auto-badge {
+  display: inline-block; background: #e8f5e9; color: #2e7d32;
+  border: 1px solid #a5d6a7; border-radius: 4px; padding: 1px 7px;
+  font-size: 11.5px; font-weight: 700; margin-left: 4px;
+}
+.guide-manual-badge {
+  display: inline-block; background: #fff3e0; color: #e65100;
+  border: 1px solid #ffcc80; border-radius: 4px; padding: 1px 7px;
+  font-size: 11.5px; font-weight: 700; margin-left: 4px;
+}
+.guide-ai-badge {
+  display: inline-block; background: #ede7f6; color: #4527a0;
+  border: 1px solid #b39ddb; border-radius: 4px; padding: 1px 7px;
+  font-size: 11.5px; font-weight: 700; margin-left: 4px;
+}
