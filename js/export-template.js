@@ -166,7 +166,7 @@
   }
 
   // ---- Ngắt trang + tách ô gộp tại ranh giới trang, lặp nội dung ----
-  const PAGE_CAP = 600; // chiều cao nội dung (pt) mỗi trang A4 (ước theo scale tự co ~70%)
+  const PAGE_CAP = 800; // chiều cao nội dung (pt) mỗi trang A4 (ước theo scale tự co ~60%)
   function paginate(H, startRow, lastRow) {
     const segments = []; const breaks = [];
     let pageStart = startRow, cum = 0;
