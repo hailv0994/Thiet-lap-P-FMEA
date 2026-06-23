@@ -33,7 +33,7 @@
   // --------------------- Tạo dữ liệu mặc định ----------------------
   function newCause() {
     return { id: uid('c'), category: '', cause: '', pastTrouble: '', occurrence: '',
-      prevention: '', detectCause: '', detection: '',
+      prevention: '', detectCause: '', detectExtra: '', detection: '',
       action: '', responsible: '', actionTaken: '', s2: '', o2: '', d2: '' };
   }
   const FOUR_M = ['Man', 'Machine', 'Method', 'Material'];
@@ -201,11 +201,42 @@
     return norm(suffix) || norm(r.detectFailureAuto);
   }
 
+  const VN_DIACR = /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i;
+  // Tên đo lường gốc của dạng hỏng: bỏ đuôi "lớn/nhỏ hơn tiêu chuẩn" và "không đạt".
+  const baseMeasureName = (s) => norm(s)
+    .replace(/\s*(lớn hơn tiêu chuẩn|nhỏ hơn tiêu chuẩn|không đạt)\s*$/i, '').trim();
+  // Tiền tố chung (theo từ) của một danh sách tên. VD ["kích thước A","kích thước B"]
+  // -> "kích thước".
+  function commonPrefixWords(names) {
+    if (!names.length) return '';
+    const split = names.map((n) => norm(n).split(' '));
+    const first = split[0];
+    let k = 0;
+    for (; k < first.length; k++) {
+      const w = first[k].toLowerCase();
+      if (!split.every((arr) => arr[k] && arr[k].toLowerCase() === w)) break;
+    }
+    return first.slice(0, k).join(' ').trim();
+  }
+  // Gộp danh sách tên đo lường thành chủ ngữ cho câu "Kiểm tra …".
+  //  • Khác nhau chỉ là MÃ NGẮN (A, B, 10, Ø23.5…)  -> "các <tiền tố chung>".
+  //  • Khác nhau là TỪ THẬT (cứng, nhám…)            -> liệt kê "X và Y".
+  function summarizeNames(names) {
+    const prefix = commonPrefixWords(names);
+    if (prefix) {
+      const rems = names.map((n) => norm(n).slice(prefix.length).trim());
+      const allShort = rems.every((rm) =>
+        rm === '' || (rm.length <= 6 && !VN_DIACR.test(rm) && /^[\wØ.\-+/ ]+$/.test(rm)));
+      if (allShort) return 'các ' + prefix;
+    }
+    return names.join(' và ');
+  }
   // Xây lại chuỗi detectFailureAuto gộp từ danh sách thành viên nhóm.
   function buildGroupDetect(members, suffix) {
-    const names = members.map(itemNameFrom).filter(Boolean);
+    const names = members.map((m) => baseMeasureName(itemNameFrom(m))).filter(Boolean);
     if (!names.length || !suffix) return members[0] ? members[0].detectFailureAuto : '';
-    return 'Kiểm tra ' + names.join(' và ') + suffix;
+    if (names.length === 1) return 'Kiểm tra ' + names[0] + suffix;
+    return 'Kiểm tra ' + summarizeNames(names) + suffix;
   }
   // Gom các yêu cầu cùng mergeId thành nhóm; giữ thứ tự, đại diện = phần tử đầu.
   function reqGroups(reqs) {
@@ -342,6 +373,7 @@
 
   function detectCellHTML(p, r, c) {
     const isVis = isVisualDetect(r, c);
+    const hasSC = !!norm(r.classification); // có đặc tính đặc thù (S/A…) → hiện ô bổ sung
     return `<td data-proc="${p.id}" data-req="${r.id}" data-cause="${c.id}">
       <div class="detect-cell">
         <div class="detect-label">① Phát hiện ra nguyên nhân (tự phân tích):</div>
@@ -352,6 +384,8 @@
         <div class="detect-label">② Phát hiện ra dạng hỏng hóc (tự động từ CP):</div>
         <div class="detect-auto" contenteditable="true" data-field="detectFailureAuto"
              data-proc="${p.id}" data-req="${r.id}">${esc(r.detectFailureAuto)}</div>
+        <div class="detect-label detect-extra-label" id="dxl-${c.id}"${hasSC ? '' : ' hidden'}>③ Bổ sung cho đặc tính đặc thù (tự điền):</div>
+        <textarea class="detect-extra" id="dx-${c.id}" data-field="detectExtra" rows="2"${hasSC ? '' : ' hidden'} placeholder="Nội dung phát hiện bổ sung…">${esc(c.detectExtra)}</textarea>
       </div></td>`;
   }
 
@@ -510,6 +544,15 @@
       if (r && r.mergeId && field !== 'reqText' && field !== 'failureMode') syncMergeGroup(getProc(pid), r);
       // Đổi ② Phát hiện dạng hỏng hóc -> xét lại giác quan & viền đỏ cho mọi nguyên nhân
       if (r && field === 'detectFailureAuto') r.causes.forEach((c) => refreshActionFlag(r, c));
+      // Đổi Phân loại (đặc tính đặc thù S/A) -> bật/tắt ô bổ sung ③ ở cột Phát hiện ra
+      if (r && field === 'classification') {
+        const show = !!norm(val);
+        r.causes.forEach((c) => {
+          const box = $(`#dx-${c.id}`), lbl = $(`#dxl-${c.id}`);
+          if (box) box.hidden = !show;
+          if (lbl) lbl.hidden = !show;
+        });
+      }
       scheduleAutosave(); return;
     }
     // cấp nguyên nhân (cột CHUNG khi gộp)

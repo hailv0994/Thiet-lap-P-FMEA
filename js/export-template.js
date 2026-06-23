@@ -3,7 +3,7 @@
  * tiêu đề + định dạng vùng dữ liệu cho dễ đọc, in A4.
  *
  * Tính năng:
- * - Font dữ liệu tiếng Việt: Arial 10pt; đặc tính đặc thù (E): Arial 20pt canh giữa.
+ * - Font dữ liệu tiếng Việt: Arial 10pt; đặc tính đặc thù (E): Yu Gothic UI Semibold 20pt canh giữa.
  * - Cột số canh giữa; tự cân đối độ rộng cột theo nội dung (giữ tổng -> vừa A4).
  * - Chiều cao dòng tự tính theo nội dung -> không mất chữ.
  * - Ô "phát hiện ra": chỉ xuất nội dung (bỏ nhãn "-Phát hiện ra ...").
@@ -117,7 +117,8 @@
           // Ô phát hiện ra: chỉ nội dung, KHÔNG nhãn
           const d1 = (c.detectCause || '').trim(), d2 = (r.detectFailureAuto || '').trim();
           const det = [d1 && '① ' + d1, d2 && '② ' + d2].filter(Boolean).join('\n');
-          put(row, 10, det);
+          const d3 = (c.detectExtra || '').trim();
+          put(row, 10, d3 ? (det ? det + '\n' : '') + '③ ' + d3 : det);
           put(row, 11, c.detection, true);
           const rpn = rpnOf(r, c); if (rpn) put(row, 12, rpn, true);
           put(row, 13, c.action);
@@ -242,7 +243,8 @@
     const fontCount = +fm[1];
     const idFont10 = fontCount, idFont20 = fontCount + 1;
     const f10 = '<font><sz val="10"/><name val="Arial"/><family val="2"/></font>';
-    const f20 = '<font><sz val="20"/><name val="Arial"/><family val="2"/></font>';
+    // Đặc tính đặc thù (S/A…) giữ font Yu Gothic UI Semibold để ký hiệu hiển thị đúng
+    const f20 = '<font><sz val="20"/><name val="Yu Gothic UI Semibold"/><family val="2"/></font>';
     stylesXml = stylesXml.replace(/<\/fonts>/, f10 + f20 + '</fonts>')
       .replace(fm[0], `<fonts count="${fontCount + 2}"${fm[2]}>`);
 

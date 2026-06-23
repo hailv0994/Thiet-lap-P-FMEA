@@ -170,6 +170,14 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
   font-size: 10px; color: #1d4ed8; background: #eff6ff;
   border: 1px solid #bfdbfe; border-radius: 10px; white-space: nowrap;
 }
+/* Ô bổ sung ③ cho đặc tính đặc thù (S/A) */
+.detect-extra-label { color: #b45309; }
+.detect-extra { background: #fffbeb; }
+/* Cột Phân loại: ký hiệu đặc tính đặc thù giữ font Yu Gothic UI Semibold */
+[data-field="classification"] {
+  font-family: "Yu Gothic UI Semibold", "Yu Gothic UI", "Yu Gothic", sans-serif;
+  font-weight: 600; text-align: center;
+}
 
 /* Hàng tiêu đề công đoạn trong cột A */
 .proc-cell { padding: 6px 7px; }
@@ -221,6 +229,7 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
 .inp-md { width: 130px; }
 /* nới rộng + chừa chỗ cho mũi tên ▼ để tên dài không che ký hiệu */
 #mProduct { width: 185px; padding-right: 22px; }
+#mDept { width: 156px; } /* Bộ phận rộng hơn 20% so với inp-md */
 #mLine { width: 165px; padding-right: 22px; }
 #projSelect { width: 270px; padding-right: 22px; }
 .btn-light { background: #fff; color: var(--ink); border-color: #bdbdbd; }
