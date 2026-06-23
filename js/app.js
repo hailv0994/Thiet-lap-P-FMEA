@@ -93,13 +93,36 @@
   };
 
   // ---------------- Gộp dạng hỏng hóc (merge group) ----------------
-  // Chữ ký so sánh: MỌI cột trừ reqText & failureMode. Chỉ những yêu cầu có chữ ký
-  // GIỐNG HỆT nhau (Ảnh hưởng, Nguyên nhân, Dự phòng, Phát hiện ra — kể cả mục
-  // kiểm tra + tần suất ở "② tự động từ CP") mới được phép gộp.
   const norm = (v) => String(v == null ? '' : v).trim();
+
+  // Tách chuỗi "Kiểm tra [tên] bằng [method] theo tần suất [freq]"
+  // → { name: 'tên', suffix: ' bằng method theo tần suất freq' }
+  // Nếu không có " bằng " → suffix = '' (không thể so sánh → dùng toàn bộ chuỗi).
+  function parseDetect(str) {
+    const s = norm(str);
+    const bang = s.indexOf(' bằng ');
+    const prefix = 'Kiểm tra ';
+    if (bang < 0) return { name: s.startsWith(prefix) ? s.slice(prefix.length) : s, suffix: '' };
+    return {
+      name: s.startsWith(prefix) ? s.slice(prefix.length, bang) : s.slice(0, bang),
+      suffix: s.slice(bang), // " bằng Height gage theo tần suất đầu ca"
+    };
+  }
+  // Tên hạng mục từ failureMode (bỏ đuôi " không đạt").
+  const itemNameFrom = (r) => norm(r.failureMode).replace(/\s*không đạt\s*$/i, '').trim();
+
+  // Chữ ký để so sánh: chỉ phần method+tần suất (sau " bằng ").
+  // Hai hạng mục có thể gộp khi cùng dụng cụ + tần suất kiểm tra, dù tên khác nhau.
   function reqSig(r) {
-    // Chỉ so theo "② Phát hiện ra dạng hỏng hóc" (mục kiểm tra + tần suất từ CP).
-    return norm(r.detectFailureAuto);
+    const { suffix } = parseDetect(r.detectFailureAuto);
+    return norm(suffix) || norm(r.detectFailureAuto);
+  }
+
+  // Xây lại chuỗi detectFailureAuto gộp từ danh sách thành viên nhóm.
+  function buildGroupDetect(members, suffix) {
+    const names = members.map(itemNameFrom).filter(Boolean);
+    if (!names.length || !suffix) return members[0] ? members[0].detectFailureAuto : '';
+    return 'Kiểm tra ' + names.join(' và ') + suffix;
   }
   // Gom các yêu cầu cùng mergeId thành nhóm; giữ thứ tự, đại diện = phần tử đầu.
   function reqGroups(reqs) {
@@ -122,7 +145,8 @@
       if (r === rep || r.mergeId !== rep.mergeId) return;
       r.effectAnalysis = rep.effectAnalysis; r.effectStdText = rep.effectStdText;
       r.effectScope = rep.effectScope; r.severity = rep.severity;
-      r.classification = rep.classification; r.detectFailureAuto = rep.detectFailureAuto;
+      r.classification = rep.classification;
+      // detectFailureAuto KHÔNG sync ở đây — được xây gộp riêng khi merge/unmerge.
       r.causes = rep.causes.map((c) => Object.assign({}, c, { id: uid('c') }));
     });
   }
@@ -962,9 +986,9 @@
     mergePop.className = 'ai-pop merge-pop';
     let body;
     if (!cands.length) {
-      body = '<div class="ai-pop-sub">Không có dạng hỏng hóc nào <b>giống hệt</b> (Ảnh hưởng · Nguyên nhân · Dự phòng · Phát hiện ra — kể cả mục kiểm tra &amp; tần suất) để gộp.</div>';
+      body = '<div class="ai-pop-sub">Không có hạng mục nào dùng cùng <b>dụng cụ &amp; tần suất kiểm tra</b> để gộp.</div>';
     } else {
-      body = '<div class="ai-pop-sub">Chọn dạng hỏng hóc giống hệt để gộp chung 1 ô:</div>'
+      body = '<div class="ai-pop-sub">Cùng dụng cụ &amp; tần suất kiểm tra — chọn để gộp:</div>'
         + cands.map((r2) => {
             const i = p.reqs.indexOf(r2) + 1;
             return `<label class="merge-item"><input type="checkbox" value="${r2.id}" /><span>${i}. ${esc(r2.failureMode || r2.reqText || '(trống)')}</span></label>`;
@@ -984,20 +1008,36 @@
       const mid = r.mergeId || uid('m');
       r.mergeId = mid;
       ids.forEach((id) => { const t = p.reqs.find((x) => x.id === id); if (t) t.mergeId = mid; });
+      // Xây lại câu "Kiểm tra A và B bằng ... theo tần suất ..." cho toàn nhóm.
+      const allMembers = p.reqs.filter((x) => x.mergeId === mid);
+      const { suffix } = parseDetect(r.detectFailureAuto);
+      const combined = buildGroupDetect(allMembers, suffix);
+      allMembers.forEach((m) => { m.detectFailureAuto = combined; });
       syncMergeGroup(p, r);
       closeMergePop();
       render();
     });
     document.addEventListener('mousedown', onMergeOutside, true);
   }
-  // Tách 1 yêu cầu khỏi nhóm gộp (dữ liệu đã được đồng bộ nên giữ nguyên đủ phân tích).
+  // Tách 1 yêu cầu khỏi nhóm gộp, khôi phục câu detectFailureAuto riêng.
   function unmergeReq(pid, rid) {
     const p = getProc(pid), r = getReq(pid, rid);
     if (!p || !r || !r.mergeId) return;
     const mid = r.mergeId;
+    const { suffix } = parseDetect(r.detectFailureAuto);
     r.mergeId = '';
+    // Khôi phục câu riêng: "Kiểm tra [tên hạng mục] bằng ..."
+    if (suffix) r.detectFailureAuto = 'Kiểm tra ' + itemNameFrom(r) + suffix;
     const rest = p.reqs.filter((x) => x.mergeId === mid);
-    if (rest.length === 1) rest[0].mergeId = ''; // nhóm còn 1 thành viên -> không còn là nhóm
+    if (rest.length === 1) {
+      // Chỉ còn 1 thành viên → giải tán nhóm, khôi phục câu riêng của thành viên đó
+      const last = rest[0]; last.mergeId = '';
+      if (suffix) last.detectFailureAuto = 'Kiểm tra ' + itemNameFrom(last) + suffix;
+    } else if (rest.length > 0 && suffix) {
+      // Xây lại câu gộp cho phần còn lại
+      const combined = buildGroupDetect(rest, suffix);
+      rest.forEach((m) => { m.detectFailureAuto = combined; });
+    }
     render();
   }
 
