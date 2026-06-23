@@ -219,7 +219,7 @@
       const totalRows = p.reqs.reduce((n, r) => n + r.causes.length, 0) || 1;
       let firstProcRow = true;
 
-      p.reqs.forEach((r) => {
+      p.reqs.forEach((r, ri) => {
         const rs = r.causes.length || 1;
         r.causes.forEach((c, ci) => {
           let tr = `<tr class="${firstProcRow ? 'proc-sep' : ''}">`;
@@ -231,7 +231,7 @@
           // B,C,D,E — chỉ ở hàng đầu của yêu cầu
           if (ci === 0) {
             tr += `<td class="auto" rowspan="${rs}" data-proc="${p.id}" data-req="${r.id}">
-                     <div class="cell-edit" contenteditable="true" data-field="failureMode">${esc(r.failureMode)}</div></td>`;
+                     <div class="fm-line"><span class="fm-idx">${ri + 1}.</span><div class="cell-edit" contenteditable="true" data-field="failureMode">${esc(r.failureMode)}</div></div></td>`;
             tr += effectCellHTML(p, r).replace('@RS@', rs);
             tr += `<td class="num" rowspan="${rs}"><div class="score-box" id="sev-${r.id}">${esc(r.severity)}</div></td>`;
             tr += `<td rowspan="${rs}" data-proc="${p.id}" data-req="${r.id}">

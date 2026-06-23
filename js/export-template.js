@@ -61,10 +61,10 @@
       put(procStart, 1, aText);
       if (totalRows > 1) merges.push([1, procStart, 1, procStart + totalRows - 1]);
 
-      for (const r of p.reqs) {
+      p.reqs.forEach((r, ri) => {
         const reqStart = row;
         const rs = r.causes.length || 1;
-        put(reqStart, 2, r.failureMode);
+        put(reqStart, 2, r.failureMode ? `${ri + 1}.${r.failureMode}` : '');
         const effect = r.effectAnalysis
           ? (r.effectStdText ? r.effectAnalysis + '\n=>' + r.effectStdText : r.effectAnalysis)
           : (r.effectStdText || '');
@@ -91,7 +91,7 @@
           if (rpn2) put(row, 19, rpn2, true);
           row++;
         });
-      }
+      });
     }
     return { rows, merges, endRow: row - 1 };
   }

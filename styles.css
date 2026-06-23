@@ -168,6 +168,9 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
 }
 .proc-cell .req-line { display: flex; gap: 4px; align-items: flex-start; margin-top: 3px; }
 .proc-cell .req-line span.idx { font-weight: 600; padding-top: 5px; }
+.fm-line { display: flex; gap: 3px; align-items: flex-start; }
+.fm-line .fm-idx { font-weight: 700; padding-top: 5px; flex: none; }
+.fm-line .cell-edit { flex: 1; }
 .proc-cell .proc-move { display: inline-flex; gap: 2px; margin-right: 4px; vertical-align: middle; }
 .proc-cell .proc-move .mini-btn { padding: 0 4px; line-height: 1.5; }
 .proc-cell .proc-head input { width: auto; display: inline-block; }
@@ -375,13 +378,13 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
   display: flex; align-items: center; gap: 12px;
   margin: 16px 0; flex-wrap: wrap;
 }
-.rpn-box {
+.guide-rpn-formula .rpn-box {
   display: inline-flex; align-items: center; justify-content: center;
   width: 52px; height: 52px; border: 2px solid var(--line-strong);
   border-radius: 8px; font-size: 22px; font-weight: 700;
   background: var(--head-2); color: var(--ink);
 }
-.rpn-result { background: var(--ink); color: #fff; border-color: var(--ink); }
+.guide-rpn-formula .rpn-result { background: var(--ink); color: #fff; border-color: var(--ink); }
 .rpn-op { font-size: 24px; color: var(--muted); font-weight: 300; }
 .guide-note {
   margin: 12px 0 0; padding: 10px 14px;
