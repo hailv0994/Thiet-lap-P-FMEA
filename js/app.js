@@ -556,21 +556,33 @@
   }
 
   // Đọc TẤT CẢ sheet -> danh sách công đoạn mới (fresh từ CP)
+  // Các sheet có cùng "Tên công đoạn" được gộp thành 1 công đoạn,
+  // số thứ tự hạng mục tiếp nối liên tục qua các sheet.
   function parseAllProcs() {
     const sheets = window.CPParser.listSheets(workbook);
-    const procs = [];
+    // Dùng Map để giữ thứ tự sheet; key = tên công đoạn đã chuẩn hóa
+    const groups = new Map(); // normKey → { name: displayName, items: [] }
     const skipped = [];
     sheets.forEach((sheet) => {
       let res;
       try { res = window.CPParser.parseSheet(workbook, sheet); }
       catch (err) { skipped.push(sheet); return; }
       if (res.error || !res.items.length) { skipped.push(sheet); return; }
+      const displayName = res.processName || sheet;
+      const key = normKey(displayName);
+      if (!groups.has(key)) groups.set(key, { name: displayName, items: [] });
+      groups.get(key).items.push(...res.items);
+    });
+    const procs = [];
+    groups.forEach(({ name, items }) => {
+      // Đánh số thứ tự liên tục qua tất cả sheet của cùng công đoạn
+      items.forEach((item, idx) => { item.no = idx + 1; });
       procs.push({
         id: uid('p'),
         no: String(procs.length + 1),
-        name: res.processName || sheet,
+        name,
         func: '',
-        reqs: res.items.map(reqFromItem),
+        reqs: items.map(reqFromItem),
       });
     });
     return { procs, skipped };
@@ -1297,8 +1309,11 @@
     $('#btnDeleteProj').addEventListener('click', onDeleteProject);
     $('#btnExportJson').addEventListener('click', onExportJson);
     $('#fileJson').addEventListener('change', onImportJson);
-    // Đổi meta = đổi NHÃN cho phiên hiện tại; KHÔNG xóa nội dung đang làm.
-    // Chỉ khi bảng đang TRỐNG và có dự án đã lưu khớp Model thì mới tự mở ra.
+    // Bộ phận/Sản phẩm/Dây chuyền xác định ngữ cảnh P-FMEA (mỗi tổ hợp = 1 bản riêng).
+    // Đổi bất kỳ 3 ô này → chuyển sang bản P-FMEA khác:
+    //   • Nếu đang có dữ liệu → hỏi xác nhận trước khi xóa.
+    //   • Sau khi xóa / nếu bảng trống → tự mở dự án đã lưu nếu khớp tổ hợp mới.
+    // Model là nhãn tự do — không kích hoạt xét ngữ cảnh.
     function onMetaChange() {
       readMetaInputs();
       if (!state.processes.length) {
@@ -1310,17 +1325,41 @@
       }
       scheduleAutosave();
     }
+    // Xác nhận chuyển ngữ cảnh (nếu đang có dữ liệu); trả về false nếu người dùng hủy.
+    function confirmContext() {
+      if (!state.processes.length) return true;
+      return confirm('Bạn đang chuyển sang bản P-FMEA khác.\nDữ liệu hiện tại chưa lưu sẽ bị xóa.\nTiếp tục?');
+    }
     $('#mDept').addEventListener('change', () => {
-      const dept = $('#mDept').value;
-      fillProduct(dept, '');                  // đổ lại sản phẩm theo bộ phận
-      fillLine(dept, '', '');                 // reset dây chuyền
+      const newDept = $('#mDept').value;
+      if (!confirmContext()) {
+        // Hoàn tác: state.meta chưa được readMetaInputs() cập nhật → vẫn là giá trị cũ
+        $('#mDept').value = state.meta.dept || '';
+        return;
+      }
+      if (state.processes.length) { state.processes = []; render(); }
+      fillProduct(newDept, '');
+      fillLine(newDept, '', '');
       onMetaChange();
     });
     $('#mProduct').addEventListener('change', () => {
-      fillLine($('#mDept').value, $('#mProduct').value, ''); // đổ lại dây chuyền
+      const newProduct = $('#mProduct').value;
+      if (!confirmContext()) {
+        $('#mProduct').value = state.meta.product || '';
+        return;
+      }
+      if (state.processes.length) { state.processes = []; render(); }
+      fillLine($('#mDept').value, newProduct, '');
       onMetaChange();
     });
-    $('#mLine').addEventListener('change', onMetaChange);
+    $('#mLine').addEventListener('change', () => {
+      if (!confirmContext()) {
+        $('#mLine').value = state.meta.line || '';
+        return;
+      }
+      if (state.processes.length) { state.processes = []; render(); }
+      onMetaChange();
+    });
     // Model: gõ tự do; khi nhập xong (change) thử tự mở dự án đã lưu nếu bảng trống.
     $('#mModel').addEventListener('change', onMetaChange);
     $('#mModel').addEventListener('input', () => { readMetaInputs(); scheduleAutosave(); });
