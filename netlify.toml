@@ -1,0 +1,5 @@
+# Cấu hình Netlify cho P-FMEA Builder
+# Web là trang tĩnh, mọi file đã nằm sẵn ở thư mục gốc repo → không cần build.
+[build]
+  publish = "."
+  command = ""
