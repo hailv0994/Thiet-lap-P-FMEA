@@ -26,11 +26,11 @@ body {
 /* ---------- Thanh trên ---------- */
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 18px; background: var(--ink); color: #fff;
-  position: sticky; top: 0; z-index: 50;
+  padding: 10px 18px; background: #fff; color: var(--ink);
+  position: sticky; top: 0; z-index: 50; border-bottom: 1px solid var(--line);
 }
 .topbar h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: .3px; }
-.subtitle { font-size: 12px; color: #c7c7c7; margin-left: 12px; }
+.subtitle { font-size: 12px; color: var(--ink-soft); margin-left: 12px; }
 .cloud-dot { width: 10px; height: 10px; border-radius: 50%; background: #9a9a9a; display: inline-block; margin-right: 6px; vertical-align: middle; }
 .cloud-dot.online { background: #34c759; box-shadow: 0 0 0 2px rgba(52,199,89,.25); }
 
@@ -95,7 +95,7 @@ select, input[type="text"], input[type="number"] {
 .fmea-table thead .grp { background: var(--head-2); }
 
 /* Độ rộng cột (A..S) — web hiển thị gọn tới "Biện pháp đề xuất" (M) */
-.c-a { width: 175px; } .c-b { width: 115px; } .c-c { width: 166px; } .c-d { width: 48px; }
+.c-a { width: 175px; } .c-b { width: 230px; } .c-c { width: 166px; } .c-d { width: 48px; }
 .c-e { width: 48px; }  .c-f { width: 154px; } .c-g { width: 40px; }  .c-h { width: 42px; }
 .c-i { width: 119px; } .c-j { width: 175px; } .c-k { width: 42px; }  .c-l { width: 46px; }
 .c-m { width: 135px; } .c-n { width: 110px; } .c-o { width: 110px; }
@@ -131,7 +131,8 @@ td.num .cell-edit { text-align: center; min-height: 26px; }
 .score-box { font-weight: 700; font-size: 14px; padding: 6px 2px; text-align: center; }
 .rpn-box { font-weight: 700; font-size: 13px; padding: 6px 2px; text-align: center; color: var(--ink); }
 input.num-inp {
-  width: 100%; border: none; text-align: center; padding: 6px 2px; font-size: 13px;
+  width: 100%; border: none; text-align: center; padding: 6px 2px; font-size: 14px;
+  font-weight: 700; font-family: inherit;
   background: transparent; -moz-appearance: textfield;
 }
 input.num-inp:focus { outline: none; background: #fff7d6; }
@@ -176,12 +177,16 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
 /* Cột Phân loại: ký hiệu đặc tính đặc thù giữ font Yu Gothic UI Semibold */
 [data-field="classification"] {
   font-family: "Yu Gothic UI Semibold", "Yu Gothic UI", "Yu Gothic", sans-serif;
-  font-weight: 600; text-align: center;
+  font-weight: 600; text-align: center; font-size: 23px;
 }
 
 /* Hàng tiêu đề công đoạn trong cột A */
 .proc-cell { padding: 6px 7px; }
-.proc-cell .proc-head { font-weight: 700; margin-bottom: 4px; }
+.proc-cell .proc-head {
+  font-weight: 700; margin-bottom: 4px;
+  display: flex; align-items: center; justify-content: space-between; gap: 4px;
+}
+.proc-head-left { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; }
 .proc-cell .lbl { color: var(--muted); font-size: 10.5px; margin-top: 6px; }
 .proc-cell textarea, .proc-cell input {
   width: 100%; border: 1px solid var(--line); border-radius: 4px; font-family: inherit;
@@ -200,9 +205,9 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
 }
 .merge-pop .merge-item:hover { background: var(--head-2, #f2f4f7); }
 .merge-pop .merge-item input { margin-top: 2px; flex: none; }
-.proc-cell .proc-move { display: inline-flex; gap: 2px; margin-right: 4px; vertical-align: middle; }
+.proc-cell .proc-move { display: inline-flex; gap: 2px; flex: none; }
 .proc-cell .proc-move .mini-btn { padding: 0 4px; line-height: 1.5; }
-.proc-cell .proc-head input { width: auto; display: inline-block; }
+.proc-cell .proc-head input { width: auto; display: inline-block; font-weight: 700; }
 
 /* Nút thao tác trong ô */
 .row-actions { padding: 3px; text-align: center; }

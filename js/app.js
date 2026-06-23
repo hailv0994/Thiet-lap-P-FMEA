@@ -318,12 +318,14 @@
     }).join('');
     return `<div class="proc-cell" data-proc="${p.id}">
         <div class="proc-head">
+          <span class="proc-head-left">
+            <input data-field="no" class="inp-no" style="width:46px" value="${esc(p.no)}" placeholder="STT" />.
+            <input data-field="name" style="width:130px" value="${esc(p.name)}" placeholder="Tên công đoạn" />
+          </span>
           <span class="proc-move">
             <button class="mini-btn" data-action="move-up" title="Lên trên">▲</button>
             <button class="mini-btn" data-action="move-down" title="Xuống dưới">▼</button>
           </span>
-          <input data-field="no" class="inp-no" style="width:46px" value="${esc(p.no)}" placeholder="STT" />.
-          <input data-field="name" style="width:150px" value="${esc(p.name)}" placeholder="Tên công đoạn" />
         </div>
         <div class="lbl">-Chức năng:</div>
         <textarea data-field="func" rows="2" placeholder="Chức năng của công đoạn">${esc(p.func)}</textarea>
