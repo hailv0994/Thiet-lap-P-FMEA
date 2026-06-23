@@ -98,12 +98,8 @@
   // kiểm tra + tần suất ở "② tự động từ CP") mới được phép gộp.
   const norm = (v) => String(v == null ? '' : v).trim();
   function reqSig(r) {
-    const head = [r.effectAnalysis, r.effectStdText, r.effectScope, r.severity,
-      r.classification, r.detectFailureAuto].map(norm).join('|');
-    const cs = (r.causes || []).map((c) => [c.category, c.cause, c.pastTrouble,
-      c.occurrence, c.prevention, c.detectCause, c.detection, c.action,
-      c.responsible, c.actionTaken, c.s2, c.o2, c.d2].map(norm).join('|')).join('§');
-    return head + '#' + cs;
+    // Chỉ so theo "② Phát hiện ra dạng hỏng hóc" (mục kiểm tra + tần suất từ CP).
+    return norm(r.detectFailureAuto);
   }
   // Gom các yêu cầu cùng mergeId thành nhóm; giữ thứ tự, đại diện = phần tử đầu.
   function reqGroups(reqs) {

@@ -97,7 +97,8 @@
           put(row, 8, c.occurrence, true);
           put(row, 9, c.prevention);
           // Ô phát hiện ra: chỉ nội dung, KHÔNG nhãn
-          const det = [c.detectCause, r.detectFailureAuto].map((s) => (s || '').trim()).filter(Boolean).join('\n');
+          const d1 = (c.detectCause || '').trim(), d2 = (r.detectFailureAuto || '').trim();
+          const det = [d1 && '① ' + d1, d2 && '② ' + d2].filter(Boolean).join('\n');
           put(row, 10, det);
           put(row, 11, c.detection, true);
           const rpn = rpnOf(r, c); if (rpn) put(row, 12, rpn, true);
