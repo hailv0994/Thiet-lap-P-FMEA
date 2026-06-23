@@ -804,7 +804,24 @@
   function snapshot() {
     return JSON.stringify({ meta: state.meta, processes: state.processes });
   }
+  // Bổ sung các field mới vào dữ liệu cũ (đảm bảo backward-compat khi load project cũ).
+  function migrateState(obj) {
+    (obj.processes || []).forEach((p) => {
+      (p.reqs || []).forEach((r) => {
+        if (r.splitId      === undefined) r.splitId      = '';
+        if (r.mergeId      === undefined) r.mergeId      = '';
+        if (r.classification=== undefined) r.classification = '';
+        if (r.detectFailureAuto === undefined) r.detectFailureAuto = '';
+        (r.causes || []).forEach((c) => {
+          if (c.detectExtra === undefined) c.detectExtra = '';
+        });
+      });
+    });
+    return obj;
+  }
+
   function applySnapshot(obj) {
+    obj = migrateState(obj);
     state.meta = Object.assign({ dept: '', product: '', line: '', model: '' }, obj.meta || {});
     state.processes = obj.processes || [];
     reindexUID();
@@ -1430,7 +1447,7 @@
       if (!state.processes.length) {
         const proj = readProjects()[currentKey()];
         if (proj && proj.processes && proj.processes.length) {
-          state.processes = proj.processes; reindexUID(); render();
+          state.processes = migrateState({ processes: proj.processes }).processes; reindexUID(); render();
           $('#projSelect').value = currentKey();
         }
       }
