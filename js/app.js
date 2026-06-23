@@ -33,7 +33,7 @@
   // --------------------- Tạo dữ liệu mặc định ----------------------
   function newCause() {
     return { id: uid('c'), category: '', cause: '', pastTrouble: '', occurrence: '',
-      prevention: '', detectCause: '', detection: '',
+      prevention: '', detectCause: '', detection: '', visualDetect: '',
       action: '', responsible: '', actionTaken: '', s2: '', o2: '', d2: '' };
   }
   const FOUR_M = ['Man', 'Machine', 'Method', 'Material'];
@@ -100,7 +100,7 @@
     if (s >= 9) return true;
     if (o >= 4) return true;
     if (s >= 7 && d >= 6) return true;       // trường hợp 1
-    if (s >= 1 && s <= 6 && d >= 7) return true; // trường hợp 2
+    if (s >= 1 && s <= 6 && d >= 7 && !cause.visualDetect) return true; // trường hợp 2: ngoài kiểm tra giác quan
     return false;
   }
 
@@ -263,11 +263,16 @@
   }
 
   function detectCellHTML(p, r, c) {
+    const visChk = c.visualDetect ? ' checked' : '';
     return `<td data-proc="${p.id}" data-req="${r.id}" data-cause="${c.id}">
       <div class="detect-cell">
         <div class="detect-label">① Phát hiện ra nguyên nhân (tự phân tích):</div>
         <textarea data-field="detectCause" rows="2" placeholder="…">${esc(c.detectCause)}</textarea>
         ${aiBtn('detectCause')}
+        <label class="visual-detect-lbl" title="Tích nếu phương pháp phát hiện bằng mắt/tay (giác quan) — khi đó D≥7 không bắt buộc đề xuất biện pháp)">
+          <input type="checkbox" data-field="visualDetect" data-proc="${p.id}" data-req="${r.id}" data-cause="${c.id}"${visChk}>
+          Giác quan
+        </label>
         <div class="detect-label">② Phát hiện ra dạng hỏng hóc (tự động từ CP):</div>
         <div class="detect-auto" contenteditable="true" data-field="detectFailureAuto"
              data-proc="${p.id}" data-req="${r.id}">${esc(r.detectFailureAuto)}</div>
@@ -437,6 +442,17 @@
   function onChange(e) {
     const el = e.target;
     const field = el.dataset && el.dataset.field;
+    if (field === 'visualDetect') {
+      const { pid, rid, cid } = dataset(el);
+      const c = getCause(pid, rid, cid);
+      if (c) {
+        c.visualDetect = el.checked ? '1' : '';
+        const r = getReq(pid, rid);
+        if (r) refreshActionFlag(r, c);
+        scheduleAutosave();
+      }
+      return;
+    }
     if (field === 'category') {
       const { pid, rid, cid } = dataset(el);
       const c = getCause(pid, rid, cid);
