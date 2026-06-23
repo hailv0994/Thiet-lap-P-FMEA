@@ -60,6 +60,43 @@
     };
   }
 
+  // Xác định danh sách dạng hỏng hóc dựa vào spec và tolerance của hạng mục CP
+  function failureModesFor(item) {
+    const name = norm(item.name || '');
+    const spec = norm(item.spec || '');
+    const tol  = norm(item.tol  || '');
+    const specDisplay = spec ? ' ' + spec : '';
+    // Quản lý 1 phía (max/min/≤/≥) → 1 dạng hỏng
+    if (/^(max|min|[≤≥]|tối\s*đa|tối\s*thiểu|không\s*quá|ít\s*nhất)/i.test(spec)) {
+      return [name + specDisplay + ' không đạt'];
+    }
+    // Không có spec, hoặc spec toàn chữ (không số, không ~) → 1 dạng hỏng
+    if (!spec || (!tol && !/[\d~]/.test(spec))) {
+      return [name + ' không đạt'];
+    }
+    // Có dung sai (±/+x-y) hoặc dạng khoảng (4~5) → 2 phía → 2 dạng hỏng
+    if (tol || /~/.test(spec)) {
+      const base = name + specDisplay;
+      return [base + ' lớn hơn tiêu chuẩn', base + ' nhỏ hơn tiêu chuẩn'];
+    }
+    // Spec là số nhưng không có dung sai → 1 dạng hỏng
+    return [name + specDisplay + ' không đạt'];
+  }
+
+  // Tạo 1 hoặc 2 yêu cầu từ 1 hạng mục CP (tùy số dạng hỏng)
+  function reqsFromItem(item) {
+    const base = {
+      reqText: item.requirement || item.name || '',
+      effectAnalysis: '', effectStdText: '', effectScope: '', severity: '',
+      classification: item.sc || '',
+      detectFailureAuto: detectAuto(item),
+      mergeId: '',
+    };
+    return failureModesFor(item).map((fm) => Object.assign({}, base, {
+      id: uid('r'), failureMode: fm, causes: [newCause()],
+    }));
+  }
+
   // ------------------------ Bộ chọn ảnh hưởng (S) -------------------
   function severityOptions(selectedIdx) {
     const groups = { product: [], process: [] };
@@ -582,7 +619,7 @@
         no: String(procs.length + 1),
         name,
         func: '',
-        reqs: items.map(reqFromItem),
+        reqs: items.flatMap(reqsFromItem),
       });
     });
     return { procs, skipped };
