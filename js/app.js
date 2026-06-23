@@ -1807,18 +1807,19 @@
       {
         tag: 'C', hiCol: 'C', title: 'Cột C — Ảnh hưởng của hỏng hóc',
         body:
-          '<div class="g-block"><h5>🎯 Tư duy đúng</h5>'
-          + '<p>Hỏng hóc này <b>gây hậu quả gì</b>? Xét theo 2 hướng:</p>'
-          + '<ul><li><b>① Ảnh hưởng tới công đoạn/quá trình:</b> kẹt lắp ráp, phải sửa ngoài, dừng máy, phế phẩm… (kể cả lắp ráp tại khách hàng mình cấp hàng).</li>'
-          + '<li><b>② Ảnh hưởng tới sản phẩm cuối / người dùng:</b> với giảm xóc, sản phẩm cuối là <b>chiếc xe máy</b>, người dùng là <b>người lái</b>.</li></ul>'
-          + '<p>⚠ Nếu hỏng hóc <b>được chặn 100% trước khi lên xe</b> → chỉ cần ghi ảnh hưởng tới công đoạn.</p></div>'
-          + '<div class="g-block"><h5>✍️ Cách làm</h5><ul>'
-          + '<li>Câu <b>②</b> phải <b>trích nguyên văn từ bảng tiêu chuẩn S</b> — đây là cơ sở để tool tự chấm điểm S.</li>'
-          + '<li>Câu <b>①</b> mô tả cụ thể ảnh hưởng tới dây chuyền.</li></ul></div>'
-          + '<div class="g-eg"><b>Ví dụ — “Chiều cao tổng lớn hơn tiêu chuẩn”:</b><br>① Không lắp được vào thân giảm xóc / phải sửa ngoài dây chuyền<br>② “Một số sản phẩm phải sửa ngoài dây chuyền hoặc phế phẩm” → S = 5</div>'
-          + '<div class="g-block"><h5>📊 Bảng S — Ảnh hưởng đến CÔNG ĐOẠN</h5>' + gSeverityTable('process') + '</div>'
-          + '<div class="g-block"><h5>📊 Bảng S — Ảnh hưởng đến SẢN PHẨM (người dùng xe)</h5>' + gSeverityTable('product') + '</div>'
-          + '<div class="guide-note">💡 Trên web: bấm <b>✎ đổi</b> trong ô ảnh hưởng để chọn câu kết luận ② → điểm S tự điền.</div>',
+          '<div class=”g-block”><h5>🎯 Tư duy đúng</h5>'
+          + '<p>Phân tích <b>hậu quả thực tế</b> nếu dạng hỏng hóc xảy ra. Xét theo 2 chiều:</p>'
+          + '<ul><li><b>Ảnh hưởng tới công đoạn / quá trình:</b> kẹt lắp ráp, phải sửa ngoài, dừng máy, phế phẩm… (kể cả lắp ráp tại khách hàng mình cấp hàng).</li>'
+          + '<li><b>Ảnh hưởng tới sản phẩm cuối / người dùng:</b> với giảm xóc, sản phẩm cuối là <b>chiếc xe máy</b>, người dùng là <b>người lái xe</b>.</li></ul>'
+          + '<p>⚠ Nếu hỏng hóc <b>được chặn 100% trước khi lên xe</b> → chỉ cần phân tích ảnh hưởng tới công đoạn.</p></div>'
+          + '<div class=”g-block”><h5>✍️ Cách làm — phân tích xong rồi mới kèm câu kết luận</h5><ul>'
+          + '<li><b>Bước 1:</b> Mô tả ảnh hưởng thực tế (tới công đoạn và/hoặc tới sản phẩm).</li>'
+          + '<li><b>Bước 2:</b> Dựa vào phân tích đó, chọn <b>câu kết luận</b> phù hợp từ bảng tiêu chuẩn S — câu kết luận là cơ sở để tool tự điền điểm S.</li>'
+          + '<li>Câu kết luận phải <b>trích nguyên văn từ bảng tiêu chuẩn</b> — không tự nghĩ ra câu khác.</li></ul></div>'
+          + '<div class=”g-eg”><b>Ví dụ — “Chiều cao tổng lớn hơn tiêu chuẩn”:</b><br><i>Phân tích:</i> Không lắp được vào thân giảm xóc ở công đoạn sau / phải sửa ngoài dây chuyền<br><i>Câu kết luận kèm theo:</i> “Một số sản phẩm phải sửa ngoài dây chuyền hoặc phế phẩm” → S = 5</div>'
+          + '<div class=”g-block”><h5>📊 Bảng S — Ảnh hưởng đến CÔNG ĐOẠN</h5>' + gSeverityTable('process') + '</div>'
+          + '<div class=”g-block”><h5>📊 Bảng S — Ảnh hưởng đến SẢN PHẨM (người dùng xe)</h5>' + gSeverityTable('product') + '</div>'
+          + '<div class=”guide-note”>💡 Trên web: nhập mô tả ảnh hưởng, rồi bấm <b>✎ đổi</b> để chọn câu kết luận từ danh sách tiêu chuẩn → điểm S tự điền.</div>',
       },
 
       // ===== Slide 5: Cột D (S) =====
@@ -1828,7 +1829,7 @@
           '<div class="g-block"><h5>🎯 Tư duy đúng</h5>'
           + '<p><b>S (Severity)</b> đo <b>mức nghiêm trọng của hậu quả</b> ở cột C (thang 1–10). Nguyên tắc cốt lõi: <b>S KHÔNG giảm được bằng kiểm tra/phát hiện</b> — chỉ giảm bằng <b>thay đổi thiết kế sản phẩm/quy trình</b>.</p></div>'
           + '<div class="g-block"><h5>✍️ Cách làm</h5><ul>'
-          + '<li>Chọn câu kết luận ② ở cột C → S <b>tự điền</b> theo bảng tiêu chuẩn. Không chấm cảm tính.</li>'
+          + '<li>Phân tích ảnh hưởng ở cột C xong → chọn <b>câu kết luận</b> phù hợp từ bảng tiêu chuẩn → S <b>tự điền</b>. Không chấm cảm tính.</li>'
           + '<li>S giữ nguyên dù biện pháp phát hiện tốt đến đâu.</li></ul></div>'
           + '<div class="guide-note">⚠ <b>Khi S ≥ 9:</b> nếu do <b>tính công nghệ thiết kế R&amp;D</b> (không sửa được bằng cải tiến sản xuất) → tổng hợp vào trang đặc biệt và <b>gửi công ty mẹ (Nhật) phê duyệt</b>.</div>'
           + '<div class="g-block"><h5>📊 Bảng tiêu chuẩn S — CÔNG ĐOẠN</h5>' + gSeverityTable('process') + '</div>'
