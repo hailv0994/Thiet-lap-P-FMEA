@@ -33,7 +33,7 @@
   // --------------------- Tạo dữ liệu mặc định ----------------------
   function newCause() {
     return { id: uid('c'), category: '', cause: '', pastTrouble: '', occurrence: '',
-      prevention: '', detectCause: '', detection: '', visualDetect: '',
+      prevention: '', detectCause: '', detection: '',
       action: '', responsible: '', actionTaken: '', s2: '', o2: '', d2: '' };
   }
   const FOUR_M = ['Man', 'Machine', 'Method', 'Material'];
@@ -92,15 +92,32 @@
     return (s && o && d) ? s * o * d : '';
   };
 
+  // Nhận diện "kiểm tra bằng giác quan" (tay/mắt/đếm…) từ nội dung phát hiện.
+  // Quét cả ① Phát hiện ra nguyên nhân (detectCause) và ② Phát hiện ra dạng hỏng hóc
+  // (detectFailureAuto — chứa "bằng [phương pháp]"). Nếu có từ khóa giác quan → true.
+  const VISUAL_KW = ['tay', 'mắt', 'đếm', 'nhìn', 'quan sát', 'thị giác', 'cảm quan',
+    'cảm nhận', 'sờ', 'nghe', 'ngửi', 'nếm', 'trực quan', 'mục kiểm', 'thủ công'];
+  function hasWord(text, kw) {
+    try {
+      const re = new RegExp('(^|[^\\p{L}\\p{N}])' + kw + '($|[^\\p{L}\\p{N}])', 'u');
+      return re.test(text);
+    } catch (e) { return text.indexOf(kw) >= 0; }
+  }
+  function isVisualDetect(req, cause) {
+    const text = ((cause.detectCause || '') + ' ' + (req.detectFailureAuto || '')).toLowerCase();
+    return VISUAL_KW.some((kw) => hasWord(text, kw));
+  }
+
   // Tiêu chuẩn thực hiện biện pháp đề xuất (GL): ô Biện pháp đề xuất cần đề xuất khi
-  //   S ≥ 9, hoặc O ≥ 4, hoặc (S ≥ 7 và D ≥ 6), hoặc (S ≤ 6 và D ≥ 7).
+  //   S ≥ 9, hoặc O ≥ 4, hoặc (S ≥ 7 và D ≥ 6), hoặc (S ≤ 6 và D ≥ 7 và KHÔNG giác quan).
   // Khi đúng → viền đỏ trên web nhắc người làm; KHÔNG in ra (chỉ là gợi ý màn hình).
   function needsAction(req, cause) {
     const s = +req.severity || 0, o = +cause.occurrence || 0, d = +cause.detection || 0;
     if (s >= 9) return true;
     if (o >= 4) return true;
     if (s >= 7 && d >= 6) return true;       // trường hợp 1
-    if (s >= 1 && s <= 6 && d >= 7 && !cause.visualDetect) return true; // trường hợp 2: ngoài kiểm tra giác quan
+    // trường hợp 2: S≤6 và D≥7, chỉ áp dụng khi phát hiện KHÔNG bằng giác quan
+    if (s >= 1 && s <= 6 && d >= 7 && !isVisualDetect(req, cause)) return true;
     return false;
   }
 
@@ -263,16 +280,14 @@
   }
 
   function detectCellHTML(p, r, c) {
-    const visChk = c.visualDetect ? ' checked' : '';
+    const isVis = isVisualDetect(r, c);
     return `<td data-proc="${p.id}" data-req="${r.id}" data-cause="${c.id}">
       <div class="detect-cell">
         <div class="detect-label">① Phát hiện ra nguyên nhân (tự phân tích):</div>
         <textarea data-field="detectCause" rows="2" placeholder="…">${esc(c.detectCause)}</textarea>
         ${aiBtn('detectCause')}
-        <label class="visual-detect-lbl" title="Tích nếu phương pháp phát hiện bằng mắt/tay (giác quan) — khi đó D≥7 không bắt buộc đề xuất biện pháp)">
-          <input type="checkbox" data-field="visualDetect" data-proc="${p.id}" data-req="${r.id}" data-cause="${c.id}"${visChk}>
-          Giác quan
-        </label>
+        <span class="visual-auto" id="vis-${c.id}"${isVis ? '' : ' hidden'}
+              title="Tự nhận từ nội dung: phát hiện bằng giác quan (tay/mắt/đếm…) → khi D≥7 không bắt buộc đề xuất biện pháp">🖐️ Giác quan (tự nhận)</span>
         <div class="detect-label">② Phát hiện ra dạng hỏng hóc (tự động từ CP):</div>
         <div class="detect-auto" contenteditable="true" data-field="detectFailureAuto"
              data-proc="${p.id}" data-req="${r.id}">${esc(r.detectFailureAuto)}</div>
@@ -380,6 +395,8 @@
   function refreshActionFlag(r, c) {
     const cell = $(`#act-${c.id}`);
     if (cell) cell.classList.toggle('need-action', needsAction(r, c));
+    const vis = $(`#vis-${c.id}`);
+    if (vis) vis.hidden = !isVisualDetect(r, c);
   }
   function refreshReqScores(pid, rid) {
     const r = getReq(pid, rid);
@@ -429,12 +446,16 @@
       const r = getReq(pid, rid); if (r) r[field] = val;
       // reqText/failureMode là riêng từng yêu cầu; các cột còn lại là CHUNG -> đồng bộ nhóm
       if (r && r.mergeId && field !== 'reqText' && field !== 'failureMode') syncMergeGroup(getProc(pid), r);
+      // Đổi ② Phát hiện dạng hỏng hóc -> xét lại giác quan & viền đỏ cho mọi nguyên nhân
+      if (r && field === 'detectFailureAuto') r.causes.forEach((c) => refreshActionFlag(r, c));
       scheduleAutosave(); return;
     }
     // cấp nguyên nhân (cột CHUNG khi gộp)
     const c = getCause(pid, rid, cid); if (!c) return;
     c[field] = val;
     if (field === 'occurrence' || field === 'detection') refreshCauseRPN(pid, rid, cid);
+    // Đổi ① Phát hiện nguyên nhân -> xét lại giác quan & viền đỏ
+    if (field === 'detectCause') { const r = getReq(pid, rid); if (r) refreshActionFlag(r, c); }
     const rr = getReq(pid, rid); if (rr && rr.mergeId) syncMergeGroup(getProc(pid), rr);
     scheduleAutosave();
   }
@@ -442,17 +463,6 @@
   function onChange(e) {
     const el = e.target;
     const field = el.dataset && el.dataset.field;
-    if (field === 'visualDetect') {
-      const { pid, rid, cid } = dataset(el);
-      const c = getCause(pid, rid, cid);
-      if (c) {
-        c.visualDetect = el.checked ? '1' : '';
-        const r = getReq(pid, rid);
-        if (r) refreshActionFlag(r, c);
-        scheduleAutosave();
-      }
-      return;
-    }
     if (field === 'category') {
       const { pid, rid, cid } = dataset(el);
       const c = getCause(pid, rid, cid);
