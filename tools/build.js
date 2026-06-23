@@ -18,7 +18,7 @@ const order = [
 const MODS = {}; order.forEach(f => MODS[f] = b64(f));
 
 let html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-html = html.replace(/<link rel="stylesheet" href="styles.css" \/>/, "<style>\n" + css + "\n</style>");
+html = html.replace(/<link rel="stylesheet" href="styles\.css[^"]*"\s*\/>/, "<style>\n" + css + "\n</style>");
 // Gỡ <script src=...> NỘI BỘ; giữ lại script từ CDN (http/https) như Supabase
 html = html.replace(/\s*<script src="(?!https?:)[^"]+"><\/script>/g, '');
 

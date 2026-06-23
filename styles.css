@@ -550,6 +550,23 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
   padding: 1px 6px; font-size: 10px; font-weight: 700; margin-bottom: 3px;
 }
 .guide-format-table th.ff-grp { background: var(--head-2); }
+.guide-format-table th small {
+  display: block; font-weight: 400; color: var(--muted);
+  font-size: 9px; margin-top: 2px; line-height: 1.25;
+}
+
+/* Bảng P-FMEA trống trong guide + tô sáng cột đang hướng dẫn */
+.guide-blank-table td {
+  border: 1px solid var(--line); height: 42px; min-width: 70px; background: var(--panel);
+}
+.guide-format-table th.ff-hi {
+  background: #ffe08a; box-shadow: inset 0 0 0 2px #d99400; position: relative;
+}
+.guide-blank-table td.ff-hi {
+  background: #fff7e0; box-shadow: inset 0 0 0 2px #d99400;
+}
+.guide-fmea-preview { margin: 0 0 18px; }
+.guide-fmea-caption { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
 
 /* ---------- Guide: mode toggle ---------- */
 .guide-mode-btns {
