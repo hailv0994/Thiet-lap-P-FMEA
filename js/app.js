@@ -319,8 +319,8 @@
     return `<div class="proc-cell" data-proc="${p.id}">
         <div class="proc-head">
           <span class="proc-head-left">
-            <input data-field="no" class="inp-no" style="width:46px" value="${esc(p.no)}" placeholder="STT" />.
-            <input data-field="name" style="width:130px" value="${esc(p.name)}" placeholder="Tên công đoạn" />
+            <input data-field="no" class="inp-no" style="width:23px" value="${esc(p.no)}" placeholder="STT" />.
+            <input data-field="name" class="inp-pname" value="${esc(p.name)}" placeholder="Tên công đoạn" />
           </span>
           <span class="proc-move">
             <button class="mini-btn" data-action="move-up" title="Lên trên">▲</button>

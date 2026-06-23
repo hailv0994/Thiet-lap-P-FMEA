@@ -29,7 +29,7 @@ body {
   padding: 10px 18px; background: #fff; color: var(--ink);
   position: sticky; top: 0; z-index: 50; border-bottom: 1px solid var(--line);
 }
-.topbar h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: .3px; }
+.topbar h1 { font-size: 32px; margin: 0; font-weight: 800; letter-spacing: .3px; }
 .subtitle { font-size: 12px; color: var(--ink-soft); margin-left: 12px; }
 .cloud-dot { width: 10px; height: 10px; border-radius: 50%; background: #9a9a9a; display: inline-block; margin-right: 6px; vertical-align: middle; }
 .cloud-dot.online { background: #34c759; box-shadow: 0 0 0 2px rgba(52,199,89,.25); }
@@ -206,8 +206,10 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
 .merge-pop .merge-item:hover { background: var(--head-2, #f2f4f7); }
 .merge-pop .merge-item input { margin-top: 2px; flex: none; }
 .proc-cell .proc-move { display: inline-flex; gap: 2px; flex: none; }
-.proc-cell .proc-move .mini-btn { padding: 0 4px; line-height: 1.5; }
+.proc-cell .proc-move .mini-btn { padding: 0 3px; line-height: 1.5; font-size: 8.8px; }
 .proc-cell .proc-head input { width: auto; display: inline-block; font-weight: 700; }
+.proc-cell .proc-head input.inp-no { flex: none; }
+.proc-cell .proc-head input.inp-pname { flex: 1; min-width: 0; }
 
 /* Nút thao tác trong ô */
 .row-actions { padding: 3px; text-align: center; }
