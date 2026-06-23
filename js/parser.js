@@ -153,12 +153,54 @@
     const range = XLSX.utils.decode_range(ws['!ref']);
     const maxRow = range.e.r;
 
-    // Tìm các hàng bắt đầu hạng mục (ô tên không rỗng), bỏ qua hàng tiêu đề phụ
+    // Tìm cột số thứ tự (№ / No / STT) trong khối chất lượng, bên trái cột tên.
+    // CP đánh số mỗi hạng mục chất lượng ở cột này; 1 hạng mục có thể trải nhiều
+    // dòng (chỉ dòng đầu mới có số). Nếu tìm thấy → dùng số làm ranh giới hạng mục
+    // (chính xác hơn việc dựa vào ô tên, tránh đếm dư các dòng nối tiếp/lặp số).
+    let noCol = -1;
+    for (const addr in ws) {
+      if (addr[0] === '!') continue;
+      const v = ws[addr] && ws[addr].v;
+      if (v == null) continue;
+      if (/^\s*(№|no\.?|stt|s\.?t\.?t\.?|số\s*tt)\s*$/i.test(String(v))) {
+        const rc = decodeAddr(addr);
+        if (rc && rc.col >= colMin && rc.col < nameCol && Math.abs(rc.row - headerRow) <= 2) {
+          noCol = rc.col; break;
+        }
+      }
+    }
+
+    // Tìm các hàng bắt đầu hạng mục.
     const starts = [];
-    for (let r = headerRow + 1; r <= maxRow; r++) {
-      const nv = ws[XLSX.utils.encode_cell({ r, c: nameCol })];
-      const txt = nv ? norm(nv.v) : '';
-      if (txt && txt !== 'Control Item') starts.push(r);
+    if (noCol >= 0) {
+      // Theo cột số:
+      //  • Hàng có TÊN và SỐ mới (chưa gặp)  -> hạng mục mới.
+      //  • Hàng có TÊN nhưng số TRỐNG/LẶP:
+      //       - cùng tên với hạng mục đang xét  -> dòng nối tiếp (gộp lên trên).
+      //       - khác tên (tác giả quên đánh số)  -> vẫn là hạng mục mới.
+      const seenNo = new Set();
+      let curName = null;
+      for (let r = headerRow + 1; r <= maxRow; r++) {
+        const nv = ws[XLSX.utils.encode_cell({ r, c: nameCol })];
+        const txt = nv ? norm(nv.v) : '';
+        if (!txt || txt === 'Control Item') continue;
+        const nameKey = txt.toLowerCase();
+        const noV = ws[XLSX.utils.encode_cell({ r, c: noCol })];
+        const noTxt = noV ? norm(noV.v) : '';
+        if (noTxt && !seenNo.has(noTxt)) {
+          seenNo.add(noTxt); starts.push(r); curName = nameKey; // số mới
+        } else if (nameKey !== curName) {
+          starts.push(r); curName = nameKey;                    // khác tên -> hạng mục mới
+        }
+        // còn lại: số trống/lặp + cùng tên -> nối tiếp, bỏ qua
+      }
+    } else {
+      // Không có cột số: dựa vào ô tên không rỗng (như cũ).
+      for (let r = headerRow + 1; r <= maxRow; r++) {
+        const nv = ws[XLSX.utils.encode_cell({ r, c: nameCol })];
+        const txt = nv ? norm(nv.v) : '';
+        if (txt && txt !== 'Control Item') starts.push(r);
+      }
     }
 
     const items = [];
