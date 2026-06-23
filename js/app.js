@@ -92,6 +92,18 @@
     return (s && o && d) ? s * o * d : '';
   };
 
+  // Tiêu chuẩn thực hiện biện pháp đề xuất (GL): ô Biện pháp đề xuất cần đề xuất khi
+  //   S ≥ 9, hoặc O ≥ 4, hoặc (S ≥ 7 và D ≥ 6), hoặc (S ≤ 6 và D ≥ 7).
+  // Khi đúng → viền đỏ trên web nhắc người làm; KHÔNG in ra (chỉ là gợi ý màn hình).
+  function needsAction(req, cause) {
+    const s = +req.severity || 0, o = +cause.occurrence || 0, d = +cause.detection || 0;
+    if (s >= 9) return true;
+    if (o >= 4) return true;
+    if (s >= 7 && d >= 6) return true;       // trường hợp 1
+    if (s >= 1 && s <= 6 && d >= 7) return true; // trường hợp 2
+    return false;
+  }
+
   // ---------------- Gộp dạng hỏng hóc (merge group) ----------------
   const norm = (v) => String(v == null ? '' : v).trim();
 
@@ -337,8 +349,10 @@
           tr += numTD(p, r, c, 'detection');
           // L RPN
           tr += `<td class="num"><div class="rpn-box" id="rpn-${c.id}">${esc(rpnOf(r, c))}</div></td>`;
-          // M..S
-          tr += txtTD(p, r, c, 'action', 'Biện pháp đề xuất');
+          // M (Biện pháp đề xuất) — viền đỏ khi S/O/D rơi vào tiêu chuẩn cần đề xuất
+          const needCls = needsAction(r, c) ? ' need-action' : '';
+          tr += `<td id="act-${c.id}" class="act-cell${needCls}" data-proc="${p.id}" data-req="${r.id}" data-cause="${c.id}">
+                   <div class="cell-edit" contenteditable="true" data-field="action" data-ph="Biện pháp đề xuất">${esc(c.action)}</div></td>`;
           tr += txtTD(p, r, c, 'responsible', 'Người chịu trách nhiệm');
           tr += txtTD(p, r, c, 'actionTaken', '');
           tr += numTD(p, r, c, 's2');
@@ -357,6 +371,11 @@
   }
 
   // ===================== Cập nhật không re-render =====================
+  // Bật/tắt viền đỏ ô Biện pháp đề xuất theo tiêu chuẩn S/O/D.
+  function refreshActionFlag(r, c) {
+    const cell = $(`#act-${c.id}`);
+    if (cell) cell.classList.toggle('need-action', needsAction(r, c));
+  }
   function refreshReqScores(pid, rid) {
     const r = getReq(pid, rid);
     if (!r) return;
@@ -365,6 +384,7 @@
     r.causes.forEach((c) => {
       const box = $(`#rpn-${c.id}`);
       if (box) box.textContent = rpnOf(r, c);
+      refreshActionFlag(r, c); // S đổi -> xét lại mọi nguyên nhân của yêu cầu
     });
   }
   function refreshCauseRPN(pid, rid, cid) {
@@ -372,6 +392,7 @@
     if (!r || !c) return;
     const box = $(`#rpn-${cid}`);
     if (box) box.textContent = rpnOf(r, c);
+    refreshActionFlag(r, c);
   }
 
   // ============================ Sự kiện ============================
