@@ -58,11 +58,14 @@ cd /tmp && npm install jsdom --no-save   # nếu chưa có
 
 ## 3. Triển khai (deploy)
 
-- **Branch phát triển & deploy:** `claude/upbeat-heisenberg-xpkxr3` (cũng là branch
-  GitHub Pages đang phục vụ). Có thêm branch `main` là bản sao.
-- **Cập nhật web:** chỉ cần `git push` đúng branch → Pages tự build lại sau vài phút.
-- **URL:** https://hailv0994.github.io/Thiet-lap-P-FMEA/ (phân biệt hoa/thường!).
+- **Branch phát triển & deploy:** `claude/upbeat-heisenberg-xpkxr3`.
+- **Cập nhật web:** chỉ cần `git push` đúng branch → cả Netlify lẫn GitHub Pages tự
+  build lại sau vài phút (không cần thao tác thêm).
+- **URL chính (Netlify):** https://pfmea-tool.netlify.app — không có username trong URL.
+- **URL dự phòng (GitHub Pages):** https://hailv0994.github.io/Thiet-lap-P-FMEA/ (phân biệt hoa/thường).
 - Repo GitHub: `hailv0994/thiet-lap-p-fmea`.
+- Netlify: site name `pfmea-tool`, deploy từ branch `claude/upbeat-heisenberg-xpkxr3`,
+  publish directory `.`, không có build command.
 
 ---
 
