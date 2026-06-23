@@ -219,15 +219,17 @@
     return first.slice(0, k).join(' ').trim();
   }
   // Gộp danh sách tên đo lường thành chủ ngữ cho câu "Kiểm tra …".
-  //  • Khác nhau chỉ là MÃ NGẮN (A, B, 10, Ø23.5…)  -> "các <tiền tố chung>".
-  //  • Khác nhau là TỪ THẬT (cứng, nhám…)            -> liệt kê "X và Y".
+  //  • Cùng loại đo lường (tiền tố ≥2 từ), phần khác nhau là MÃ NGẮN (A,B…) hoặc
+  //    chứa GIÁ TRỊ SỐ (203.3, Ø24, 191.9…)  -> "các <tiền tố chung>".
+  //  • Khác loại thật sự (cứng / nhám, tiền tố 1 từ như "Độ") -> liệt kê "X và Y".
   function summarizeNames(names) {
     const prefix = commonPrefixWords(names);
-    if (prefix) {
+    const wc = prefix ? prefix.split(' ').length : 0;
+    if (prefix && wc >= 2) {
       const rems = names.map((n) => norm(n).slice(prefix.length).trim());
-      const allShort = rems.every((rm) =>
-        rm === '' || (rm.length <= 6 && !VN_DIACR.test(rm) && /^[\wØ.\-+/ ]+$/.test(rm)));
-      if (allShort) return 'các ' + prefix;
+      const ok = rems.every((rm) =>
+        rm === '' || /\d/.test(rm) || (rm.length <= 4 && !VN_DIACR.test(rm)));
+      if (ok) return 'các ' + prefix.charAt(0).toLowerCase() + prefix.slice(1);
     }
     return names.join(' và ');
   }
@@ -859,6 +861,21 @@
         newReqs.push(r);
       });
       p.reqs = newReqs;
+
+      // Cập nhật nội dung "Phát hiện ra dạng hỏng hóc" của nhóm đã gộp sang định
+      // dạng mới "Kiểm tra các <tên chung> bằng…" nếu còn ở dạng nối cũ "X và Y".
+      const seenM = new Set();
+      p.reqs.forEach((r) => {
+        if (!r.mergeId || seenM.has(r.mergeId)) return;
+        seenM.add(r.mergeId);
+        const members = p.reqs.filter((x) => x.mergeId === r.mergeId);
+        if (members.length < 2) return;
+        const auto = r.detectFailureAuto || '';
+        if (/^Kiểm tra .+ và .+ bằng /.test(auto)) {
+          const rebuilt = buildGroupDetect(members, parseDetect(auto).suffix);
+          members.forEach((m) => { m.detectFailureAuto = rebuilt; });
+        }
+      });
     });
     return obj;
   }
@@ -1257,12 +1274,12 @@
     const { suffix } = parseDetect(r.detectFailureAuto);
     r.mergeId = '';
     // Khôi phục câu riêng: "Kiểm tra [tên hạng mục] bằng ..."
-    if (suffix) r.detectFailureAuto = 'Kiểm tra ' + itemNameFrom(r) + suffix;
+    if (suffix) r.detectFailureAuto = 'Kiểm tra ' + baseMeasureName(itemNameFrom(r)) + suffix;
     const rest = p.reqs.filter((x) => x.mergeId === mid);
     if (rest.length === 1) {
       // Chỉ còn 1 thành viên → giải tán nhóm, khôi phục câu riêng của thành viên đó
       const last = rest[0]; last.mergeId = '';
-      if (suffix) last.detectFailureAuto = 'Kiểm tra ' + itemNameFrom(last) + suffix;
+      if (suffix) last.detectFailureAuto = 'Kiểm tra ' + baseMeasureName(itemNameFrom(last)) + suffix;
     } else if (rest.length > 0 && suffix) {
       // Xây lại câu gộp cho phần còn lại
       const combined = buildGroupDetect(rest, suffix);
