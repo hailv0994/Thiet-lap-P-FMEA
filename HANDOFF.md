@@ -106,6 +106,13 @@ cd /tmp && npm install jsdom --no-save   # nếu chưa có
   tích cũ, cập nhật phần thông số (spec) từ CP mới.
 - **Chấm điểm S tự động** theo bảng tiêu chuẩn (chọn câu kết luận → ra điểm).
 - **RPN tự tính** = S × O × D. Gộp ô (merge) khi 1 dạng hỏng có nhiều nguyên nhân.
+- **Số thứ tự dạng hỏng hóc**: ô cột B tự đánh số khớp số yêu cầu ở cột A (vd yêu cầu
+  "1. ..." → dạng hỏng hóc "1. ... không đạt"), hiển thị cả trên web lẫn file Excel.
+- **Gộp dạng hỏng hóc** (nút 🔗 trên mỗi ô cột B): gộp nhiều dạng hỏng hóc trong cùng
+  công đoạn vào 1 ô khi **chữ ký giống hệt** (mọi cột trừ yêu cầu & dạng hỏng hóc —
+  tức Ảnh hưởng/Nguyên nhân/Dự phòng/Phát hiện ra, kể cả mục kiểm tra + tần suất ở ②).
+  Dữ liệu chung được đồng bộ giữa các thành viên (`syncMergeGroup`), nút 🔓 để tách.
+  Cài đặt: `req.mergeId`, hàm `reqSig()`/`reqGroups()` (có cả trong `export-template.js`).
 - **Xuất Excel** đúng form gốc, in vừa khổ A4 ngang, tự đánh số trang, đã bỏ sheet "VÍ DỤ".
 - **Sao lưu / Nạp** dự án ra file `.json`.
 - **Đồng bộ đám mây** (Supabase) cho model base / bối cảnh / mẫu câu.

@@ -33,6 +33,20 @@
   };
   const causeText = (c) => ((c.category ? c.category + ': ' : '') + (c.cause || '')).trim();
 
+  // Gom yêu cầu cùng mergeId thành nhóm (đại diện = phần tử đầu); giữ thứ tự gốc.
+  function reqGroups(reqs) {
+    const seen = new Set(); const groups = [];
+    reqs.forEach((r, ri) => {
+      if (seen.has(r.id)) return;
+      const members = [{ r, ri }]; seen.add(r.id);
+      if (r.mergeId) reqs.forEach((r2, ri2) => {
+        if (!seen.has(r2.id) && r2.mergeId === r.mergeId) { members.push({ r: r2, ri: ri2 }); seen.add(r2.id); }
+      });
+      groups.push(members);
+    });
+    return groups;
+  }
+
   // cột -> loại: T text, N số, S đặc tính đặc thù
   const COL_KIND = { 1: 'T', 2: 'T', 3: 'T', 4: 'N', 5: 'S', 6: 'T', 7: 'T', 8: 'N', 9: 'T', 10: 'T', 11: 'N', 12: 'N', 13: 'T', 14: 'T', 15: 'T', 16: 'N', 17: 'N', 18: 'N', 19: 'N' };
   const TEXT_COLS = [1, 2, 3, 6, 7, 9, 10, 13, 14, 15];
@@ -55,16 +69,20 @@
     let row = startRow;
     for (const p of state.processes) {
       const procStart = row;
-      const totalRows = p.reqs.reduce((n, r) => n + (r.causes.length || 1), 0) || 1;
+      const groups = reqGroups(p.reqs);
+      const totalRows = groups.reduce((n, g) => n + (g[0].r.causes.length || 1), 0) || 1;
       const reqList = p.reqs.map((r, i) => `${i + 1}.${r.reqText}`).join('\n');
       const aText = `${p.no ? p.no + '.' : ''}${p.name}\n\n-Chức năng: \n${p.func || ''}\n\n-Yêu cầu: \n${reqList}`;
       put(procStart, 1, aText);
       if (totalRows > 1) merges.push([1, procStart, 1, procStart + totalRows - 1]);
 
-      p.reqs.forEach((r, ri) => {
+      groups.forEach((grp) => {
+        const r = grp[0].r;            // đại diện nhóm cho các cột C–S
         const reqStart = row;
         const rs = r.causes.length || 1;
-        put(reqStart, 2, r.failureMode ? `${ri + 1}.${r.failureMode}` : '');
+        // Cột B: liệt kê mọi dạng hỏng hóc trong nhóm, đánh số theo yêu cầu ở cột A
+        const fmText = grp.map(({ r: m, ri }) => `${ri + 1}.${m.failureMode || ''}`).join('\n');
+        put(reqStart, 2, fmText);
         const effect = r.effectAnalysis
           ? (r.effectStdText ? r.effectAnalysis + '\n=>' + r.effectStdText : r.effectAnalysis)
           : (r.effectStdText || '');

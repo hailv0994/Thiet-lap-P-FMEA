@@ -168,9 +168,17 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
 }
 .proc-cell .req-line { display: flex; gap: 4px; align-items: flex-start; margin-top: 3px; }
 .proc-cell .req-line span.idx { font-weight: 600; padding-top: 5px; }
-.fm-line { display: flex; gap: 3px; align-items: flex-start; }
+.fm-line { display: flex; gap: 3px; align-items: flex-start; margin-bottom: 4px; }
 .fm-line .fm-idx { font-weight: 700; padding-top: 5px; flex: none; }
 .fm-line .cell-edit { flex: 1; }
+.fm-line .fm-tools { display: inline-flex; gap: 2px; flex: none; }
+.fm-line .fm-tools .mini-btn { padding: 1px 4px; line-height: 1.4; }
+.merge-pop .merge-item {
+  display: flex; gap: 7px; align-items: flex-start;
+  padding: 6px 4px; border-radius: 4px; cursor: pointer; font-size: 12.5px;
+}
+.merge-pop .merge-item:hover { background: var(--head-2, #f2f4f7); }
+.merge-pop .merge-item input { margin-top: 2px; flex: none; }
 .proc-cell .proc-move { display: inline-flex; gap: 2px; margin-right: 4px; vertical-align: middle; }
 .proc-cell .proc-move .mini-btn { padding: 0 4px; line-height: 1.5; }
 .proc-cell .proc-head input { width: auto; display: inline-block; }

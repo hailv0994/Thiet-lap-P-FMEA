@@ -92,6 +92,45 @@
     return (s && o && d) ? s * o * d : '';
   };
 
+  // ---------------- Gộp dạng hỏng hóc (merge group) ----------------
+  // Chữ ký so sánh: MỌI cột trừ reqText & failureMode. Chỉ những yêu cầu có chữ ký
+  // GIỐNG HỆT nhau (Ảnh hưởng, Nguyên nhân, Dự phòng, Phát hiện ra — kể cả mục
+  // kiểm tra + tần suất ở "② tự động từ CP") mới được phép gộp.
+  const norm = (v) => String(v == null ? '' : v).trim();
+  function reqSig(r) {
+    const head = [r.effectAnalysis, r.effectStdText, r.effectScope, r.severity,
+      r.classification, r.detectFailureAuto].map(norm).join('|');
+    const cs = (r.causes || []).map((c) => [c.category, c.cause, c.pastTrouble,
+      c.occurrence, c.prevention, c.detectCause, c.detection, c.action,
+      c.responsible, c.actionTaken, c.s2, c.o2, c.d2].map(norm).join('|')).join('§');
+    return head + '#' + cs;
+  }
+  // Gom các yêu cầu cùng mergeId thành nhóm; giữ thứ tự, đại diện = phần tử đầu.
+  function reqGroups(reqs) {
+    const seen = new Set(); const groups = [];
+    reqs.forEach((r, ri) => {
+      if (seen.has(r.id)) return;
+      const members = [{ r, ri }]; seen.add(r.id);
+      if (r.mergeId) reqs.forEach((r2, ri2) => {
+        if (!seen.has(r2.id) && r2.mergeId === r.mergeId) { members.push({ r: r2, ri: ri2 }); seen.add(r2.id); }
+      });
+      groups.push(members);
+    });
+    return groups;
+  }
+  // Đồng bộ dữ liệu chung (mọi cột trừ reqText/failureMode) từ đại diện -> thành viên,
+  // để khi tách nhóm mỗi yêu cầu vẫn giữ đầy đủ phân tích.
+  function syncMergeGroup(p, rep) {
+    if (!p || !rep || !rep.mergeId) return;
+    p.reqs.forEach((r) => {
+      if (r === rep || r.mergeId !== rep.mergeId) return;
+      r.effectAnalysis = rep.effectAnalysis; r.effectStdText = rep.effectStdText;
+      r.effectScope = rep.effectScope; r.severity = rep.severity;
+      r.classification = rep.classification; r.detectFailureAuto = rep.detectFailureAuto;
+      r.causes = rep.causes.map((c) => Object.assign({}, c, { id: uid('c') }));
+    });
+  }
+
   // ============================ RENDER =============================
   function buildHeader() {
     const H = (txt, cls = '') => `<th class="${cls}">${txt}</th>`;
@@ -155,6 +194,21 @@
   // Nút AI hỗ trợ phân tích cho 1 ô
   const aiBtn = (field) => `<button class="ai-btn" data-action="ai" data-ai-field="${field}" title="AI hỗ trợ phân tích">✨ AI</button>`;
 
+  // Ô cột B (Dạng hỏng hóc): liệt kê tất cả dạng hỏng hóc trong nhóm gộp.
+  // Mỗi dòng có số thứ tự (theo yêu cầu ở cột A), nút 🔗 Gộp và 🔓 Tách (nếu đang gộp).
+  function fmCellHTML(p, grp) {
+    const grouped = grp.length > 1;
+    return grp.map(({ r, ri }) => `
+      <div class="fm-line" data-proc="${p.id}" data-req="${r.id}">
+        <span class="fm-idx">${ri + 1}.</span>
+        <div class="cell-edit" contenteditable="true" data-field="failureMode">${esc(r.failureMode)}</div>
+        <span class="fm-tools">
+          <button class="mini-btn" data-action="merge-open" title="Gộp các dạng hỏng hóc giống nhau">🔗</button>
+          ${grouped ? '<button class="mini-btn danger" data-action="unmerge" title="Tách khỏi nhóm gộp">🔓</button>' : ''}
+        </span>
+      </div>`).join('');
+  }
+
   function effectCellHTML(p, r) {
     const idx = findSeverityIdx(r);
     const chosen = !!r.effectStdText;
@@ -201,6 +255,7 @@
 
   function render() {
     if (aiPop) closeAIPop();
+    if (mergePop) closeMergePop();
     const tbody = $('#fmea tbody');
     const empty = $('#emptyState');
     if (!state.processes.length) {
@@ -216,10 +271,12 @@
 
     const rows = [];
     for (const p of state.processes) {
-      const totalRows = p.reqs.reduce((n, r) => n + r.causes.length, 0) || 1;
+      const groups = reqGroups(p.reqs);
+      const totalRows = groups.reduce((n, g) => n + (g[0].r.causes.length || 1), 0) || 1;
       let firstProcRow = true;
 
-      p.reqs.forEach((r, ri) => {
+      groups.forEach((grp) => {
+        const r = grp[0].r;            // đại diện nhóm: cung cấp các cột C–S
         const rs = r.causes.length || 1;
         r.causes.forEach((c, ci) => {
           let tr = `<tr class="${firstProcRow ? 'proc-sep' : ''}">`;
@@ -230,8 +287,7 @@
           }
           // B,C,D,E — chỉ ở hàng đầu của yêu cầu
           if (ci === 0) {
-            tr += `<td class="auto" rowspan="${rs}" data-proc="${p.id}" data-req="${r.id}">
-                     <div class="fm-line"><span class="fm-idx">${ri + 1}.</span><div class="cell-edit" contenteditable="true" data-field="failureMode">${esc(r.failureMode)}</div></div></td>`;
+            tr += `<td class="auto" rowspan="${rs}">${fmCellHTML(p, grp)}</td>`;
             tr += effectCellHTML(p, r).replace('@RS@', rs);
             tr += `<td class="num" rowspan="${rs}"><div class="score-box" id="sev-${r.id}">${esc(r.severity)}</div></td>`;
             tr += `<td rowspan="${rs}" data-proc="${p.id}" data-req="${r.id}">
@@ -324,12 +380,16 @@
     }
     if (field === 'reqText' || field === 'failureMode' || field === 'classification'
         || field === 'effectAnalysis' || field === 'detectFailureAuto') {
-      const r = getReq(pid, rid); if (r) r[field] = val; return;
+      const r = getReq(pid, rid); if (r) r[field] = val;
+      // reqText/failureMode là riêng từng yêu cầu; các cột còn lại là CHUNG -> đồng bộ nhóm
+      if (r && r.mergeId && field !== 'reqText' && field !== 'failureMode') syncMergeGroup(getProc(pid), r);
+      scheduleAutosave(); return;
     }
-    // cấp nguyên nhân
+    // cấp nguyên nhân (cột CHUNG khi gộp)
     const c = getCause(pid, rid, cid); if (!c) return;
     c[field] = val;
     if (field === 'occurrence' || field === 'detection') refreshCauseRPN(pid, rid, cid);
+    const rr = getReq(pid, rid); if (rr && rr.mergeId) syncMergeGroup(getProc(pid), rr);
     scheduleAutosave();
   }
 
@@ -338,7 +398,8 @@
     const field = el.dataset && el.dataset.field;
     if (field === 'category') {
       const { pid, rid, cid } = dataset(el);
-      const c = getCause(pid, rid, cid); if (c) { c.category = el.value; scheduleAutosave(); }
+      const c = getCause(pid, rid, cid);
+      if (c) { c.category = el.value; const r = getReq(pid, rid); if (r && r.mergeId) syncMergeGroup(getProc(pid), r); scheduleAutosave(); }
       return;
     }
     if (field === 'effectStd') {
@@ -359,6 +420,7 @@
         }
       }
       refreshReqScores(pid, rid);
+      if (r.mergeId) syncMergeGroup(getProc(pid), r);
       scheduleAutosave();
     }
   }
@@ -380,6 +442,8 @@
       }
       return;
     }
+    if (action === 'merge-open') { openMergePop(btn, pid, rid); return; }
+    if (action === 'unmerge') { unmergeReq(pid, rid); return; }
     if (action === 'add-cause') {
       const r = getReq(pid, rid); if (r) { r.causes.push(newCause()); render(); }
     } else if (action === 'del-cause') {
@@ -879,6 +943,66 @@
     list.unshift(text); if (list.length > 50) list.length = 50;
     all[k] = list; localStorage.setItem(LS_PHRASES, JSON.stringify(all));
     cloudPushPhrase(field, ctxKeyName(), text);   // đẩy câu mới lên chung
+  }
+
+  // ----- Popup gộp dạng hỏng hóc -----
+  let mergePop = null;
+  function closeMergePop() {
+    if (mergePop) { mergePop.remove(); mergePop = null; document.removeEventListener('mousedown', onMergeOutside, true); }
+  }
+  function onMergeOutside(e) {
+    if (mergePop && !mergePop.contains(e.target) && !e.target.closest('[data-action="merge-open"]')) closeMergePop();
+  }
+  function openMergePop(btn, pid, rid) {
+    closeMergePop();
+    const p = getProc(pid), r = getReq(pid, rid);
+    if (!p || !r) return;
+    const sig = reqSig(r);
+    // Ứng viên gộp: cùng công đoạn, chữ ký GIỐNG HỆT (mọi cột trừ dạng hỏng hóc/yêu cầu),
+    // và chưa nằm cùng nhóm với yêu cầu này. Khác mục kiểm tra/tần suất -> chữ ký khác -> bị loại.
+    const cands = p.reqs.filter((r2) => r2.id !== rid && reqSig(r2) === sig
+      && !(r.mergeId && r2.mergeId === r.mergeId));
+    mergePop = document.createElement('div');
+    mergePop.className = 'ai-pop merge-pop';
+    let body;
+    if (!cands.length) {
+      body = '<div class="ai-pop-sub">Không có dạng hỏng hóc nào <b>giống hệt</b> (Ảnh hưởng · Nguyên nhân · Dự phòng · Phát hiện ra — kể cả mục kiểm tra &amp; tần suất) để gộp.</div>';
+    } else {
+      body = '<div class="ai-pop-sub">Chọn dạng hỏng hóc giống hệt để gộp chung 1 ô:</div>'
+        + cands.map((r2) => {
+            const i = p.reqs.indexOf(r2) + 1;
+            return `<label class="merge-item"><input type="checkbox" value="${r2.id}" /><span>${i}. ${esc(r2.failureMode || r2.reqText || '(trống)')}</span></label>`;
+          }).join('');
+    }
+    mergePop.innerHTML =
+      `<div class="ai-pop-head">🔗 Gộp dạng hỏng hóc<button class="ai-pop-x" title="Đóng">✕</button></div>
+       <div class="ai-pop-scroll">${body}</div>`
+      + (cands.length ? '<div class="ai-pop-add"><button class="btn btn-primary merge-do">Gộp đã chọn</button></div>' : '');
+    document.body.appendChild(mergePop);
+    positionPop(mergePop, btn);
+    mergePop.querySelector('.ai-pop-x').addEventListener('click', closeMergePop);
+    const doBtn = mergePop.querySelector('.merge-do');
+    if (doBtn) doBtn.addEventListener('click', () => {
+      const ids = Array.from(mergePop.querySelectorAll('input:checked')).map((i) => i.value);
+      if (!ids.length) { closeMergePop(); return; }
+      const mid = r.mergeId || uid('m');
+      r.mergeId = mid;
+      ids.forEach((id) => { const t = p.reqs.find((x) => x.id === id); if (t) t.mergeId = mid; });
+      syncMergeGroup(p, r);
+      closeMergePop();
+      render();
+    });
+    document.addEventListener('mousedown', onMergeOutside, true);
+  }
+  // Tách 1 yêu cầu khỏi nhóm gộp (dữ liệu đã được đồng bộ nên giữ nguyên đủ phân tích).
+  function unmergeReq(pid, rid) {
+    const p = getProc(pid), r = getReq(pid, rid);
+    if (!p || !r || !r.mergeId) return;
+    const mid = r.mergeId;
+    r.mergeId = '';
+    const rest = p.reqs.filter((x) => x.mergeId === mid);
+    if (rest.length === 1) rest[0].mergeId = ''; // nhóm còn 1 thành viên -> không còn là nhóm
+    render();
   }
 
   // ----- Popup gợi ý -----
