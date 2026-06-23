@@ -804,18 +804,61 @@
   function snapshot() {
     return JSON.stringify({ meta: state.meta, processes: state.processes });
   }
-  // Bổ sung các field mới vào dữ liệu cũ (đảm bảo backward-compat khi load project cũ).
+  // Phân tích reqText dạng "Tên: spec(tol)" → { name, spec, tol }
+  // Dùng trong migration để tái sinh dạng hỏng hóc từ dữ liệu cũ.
+  function parseReqText(reqText) {
+    const s = norm(reqText || '');
+    const colonIdx = s.indexOf(': ');
+    if (colonIdx < 0) return { name: s, spec: '', tol: '' };
+    const name = s.slice(0, colonIdx);
+    const rest = s.slice(colonIdx + 2).trim();
+    if (!rest) return { name, spec: '', tol: '' };
+    const parenMatch = rest.match(/^(.+?)\(([^)]+)\)\s*$/);
+    if (parenMatch) return { name, spec: parenMatch[1].trim(), tol: parenMatch[2].trim() };
+    return { name, spec: rest, tol: '' };
+  }
+
+  // Bổ sung field mới VÀ tái sinh dạng hỏng hóc cho dữ liệu cũ.
   function migrateState(obj) {
+    // Đẩy UID vượt qua mọi id đã có trong obj để tránh trùng lúc tạo ID mới.
+    let mx = UID;
+    JSON.stringify(obj.processes || []).replace(/[a-z](\d+)/g, (_, n) => { mx = Math.max(mx, +n); return _; });
+    UID = mx + 1;
+
     (obj.processes || []).forEach((p) => {
+      const newReqs = [];
       (p.reqs || []).forEach((r) => {
-        if (r.splitId      === undefined) r.splitId      = '';
-        if (r.mergeId      === undefined) r.mergeId      = '';
+        // 1. Bổ sung field còn thiếu
+        if (r.splitId       === undefined) r.splitId       = '';
+        if (r.mergeId       === undefined) r.mergeId       = '';
         if (r.classification=== undefined) r.classification = '';
         if (r.detectFailureAuto === undefined) r.detectFailureAuto = '';
         (r.causes || []).forEach((c) => {
           if (c.detectExtra === undefined) c.detectExtra = '';
         });
+
+        // 2. Tái sinh dạng hỏng hóc nếu req chưa được tách (dạng cũ).
+        //    Nhận biết dạng cũ: không có splitId VÀ failureMode không chứa
+        //    "lớn hơn tiêu chuẩn" / "nhỏ hơn tiêu chuẩn".
+        if (!r.splitId && !/lớn hơn tiêu chuẩn|nhỏ hơn tiêu chuẩn/.test(r.failureMode)) {
+          const parsed = parseReqText(r.reqText);
+          const modes  = failureModesFor(parsed);
+          if (modes.length === 2) {
+            // Tách thành 2 req độc lập cùng splitId
+            const splitId = uid('split');
+            newReqs.push(Object.assign({}, r, { splitId, failureMode: modes[0] }));
+            newReqs.push(Object.assign({}, r, {
+              id: uid('r'), splitId, failureMode: modes[1],
+              causes: (r.causes || []).map((c) => Object.assign({}, c, { id: uid('c') })),
+            }));
+            return; // không push r gốc
+          }
+          // 1 mode: cập nhật failureMode sang định dạng mới (có spec)
+          r.failureMode = modes[0] || r.failureMode;
+        }
+        newReqs.push(r);
       });
+      p.reqs = newReqs;
     });
     return obj;
   }
