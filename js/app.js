@@ -1700,7 +1700,7 @@
     // Gợi ý tự động khi gõ vào ô Ảnh hưởng / Nguyên nhân
     tbody.addEventListener('input', (e) => {
       const el = e.target; const field = el.dataset && el.dataset.field;
-      if (field === 'effectAnalysis' || field === 'cause') showAutocomplete(el, field);
+      if (field === 'effectAnalysis' || field === 'cause' || field === 'prevention' || field === 'detectCause') showAutocomplete(el, field);
     });
     tbody.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAC(); });
     // Tự gõ trực tiếp vào ô -> lưu câu vào bộ nhớ của cột đó (khi rời ô)
