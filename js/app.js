@@ -141,6 +141,34 @@
   function getReq(pid, rid) { const p = getProc(pid); return p && p.reqs.find((r) => r.id === rid); }
   function getCause(pid, rid, cid) { const r = getReq(pid, rid); return r && r.causes.find((c) => c.id === cid); }
 
+  // Khi nhập một nguyên nhân GIỐNG Y HỆT một nguyên nhân đã có (trong CÙNG công đoạn),
+  // tự điền các ô đang trống: Dự phòng, Phát hiện ra nguyên nhân ①, điểm O, điểm D, Biện pháp đề xuất.
+  // Chỉ điền vào ô đang trống (không ghi đè dữ liệu đã nhập). Trả về true nếu có thay đổi.
+  function autofillFromMatchingCause(pid, rid, cid) {
+    const p = getProc(pid);
+    const c = getCause(pid, rid, cid);
+    if (!p || !c) return false;
+    const key = normKey(c.cause);
+    if (!key) return false;
+    const TARGETS = ['prevention', 'detectCause', 'occurrence', 'detection', 'action'];
+    if (TARGETS.every((f) => norm(c[f]))) return false; // không còn ô trống để điền
+    let src = null;
+    for (const r of p.reqs) {
+      for (const oc of r.causes) {
+        if (oc.id === cid) continue;
+        if (normKey(oc.cause) !== key) continue;
+        if (TARGETS.some((f) => norm(oc[f]))) { src = oc; break; }
+      }
+      if (src) break;
+    }
+    if (!src) return false;
+    let changed = false;
+    TARGETS.forEach((f) => {
+      if (!norm(c[f]) && norm(src[f])) { c[f] = src[f]; changed = true; }
+    });
+    return changed;
+  }
+
   const rpnOf = (req, cause) => {
     const s = +req.severity, o = +cause.occurrence, d = +cause.detection;
     return (s && o && d) ? s * o * d : '';
@@ -1563,6 +1591,11 @@
       const el = e.target; const field = el.dataset && el.dataset.field;
       if (field === 'effectAnalysis' || field === 'cause' || field === 'prevention' || field === 'detectCause') {
         savePhrase(field, (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') ? el.value : el.textContent);
+      }
+      // Nhập nguyên nhân giống y hệt -> tự điền các ô trống (dự phòng / phát hiện / O / D / biện pháp)
+      if (field === 'cause') {
+        const { pid, rid, cid } = dataset(el);
+        if (autofillFromMatchingCause(pid, rid, cid)) { render(); scheduleAutosave(); }
       }
     });
 
