@@ -1472,6 +1472,17 @@
       const mid = r.mergeId || uid('m');
       r.mergeId = mid;
       ids.forEach((id) => { const t = p.reqs.find((x) => x.id === id); if (t) t.mergeId = mid; });
+      // Giữ giá trị cột CHUNG: nếu đại diện (ô gộp-vào) đang TRỐNG mà thành viên có
+      // -> lấy của thành viên, tránh làm mất đặc tính đặc thù / ảnh hưởng / điểm S khi gộp.
+      const groupMembers = p.reqs.filter((x) => x.mergeId === mid);
+      if (!norm(r.classification)) {
+        const m = groupMembers.find((x) => norm(x.classification));
+        if (m) r.classification = m.classification;
+      }
+      if (!norm(r.effectAnalysis) && !norm(r.effectStdText)) {
+        const m = groupMembers.find((x) => norm(x.effectStdText) || norm(x.effectAnalysis));
+        if (m) { r.effectAnalysis = m.effectAnalysis; r.effectStdText = m.effectStdText; r.effectScope = m.effectScope; r.severity = m.severity; }
+      }
       // Dựng lại câu phát hiện cho nhóm + giải tán/cập nhật mọi nhóm bị ảnh hưởng.
       normalizeMergeGroups(p);
       syncMergeGroup(p, r);
