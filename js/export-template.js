@@ -6,7 +6,7 @@
  * - Font dữ liệu tiếng Việt: Arial 10pt; đặc tính đặc thù (E): Yu Gothic UI Semibold 20pt canh giữa.
  * - Cột số canh giữa; tự cân đối độ rộng cột theo nội dung (giữ tổng -> vừa A4).
  * - Chiều cao dòng tự tính theo nội dung -> không mất chữ.
- * - Ô "phát hiện ra": chỉ xuất nội dung (bỏ nhãn "-Phát hiện ra ...").
+ * - Ô "phát hiện ra": xuất kèm nhãn "-Phát hiện ra nguyên nhân/dạng hỏng hóc".
  * - Khi nội dung tràn sang trang A4 khác: tách ô gộp tại ranh giới trang và
  *   LẶP LẠI nội dung Quy trình/Dạng hỏng/Ảnh hưởng ở đầu trang sau (ngắt trang
  *   thủ công để Excel ngắt đúng chỗ).
@@ -109,16 +109,21 @@
         put(reqStart, 5, r.classification);
         if (rs > 1) [2, 3, 4, 5].forEach((c) => merges.push([c, reqStart, c, reqStart + rs - 1]));
 
-        (r.causes.length ? r.causes : [{}]).forEach((c) => {
+        (r.causes.length ? r.causes : [{}]).forEach((c, ci) => {
           put(row, 6, causeText(c));
           put(row, 7, c.pastTrouble);
           put(row, 8, c.occurrence, true);
           put(row, 9, c.prevention);
-          // Ô phát hiện ra: chỉ nội dung, KHÔNG nhãn
-          const d1 = (c.detectCause || '').trim(), d2 = (r.detectFailureAuto || '').trim();
-          const det = [d1 && '① ' + d1, d2 && '② ' + d2].filter(Boolean).join('\n');
+          // Ô phát hiện ra: có nhãn. Nguyên nhân đầu hiện đầy đủ; các nguyên nhân
+          // sau ghi "giống với nội dung trên" cho phần dạng hỏng hóc.
+          const d1 = (c.detectCause || '').trim();
+          const d2 = ci === 0 ? (r.detectFailureAuto || '').trim() : 'giống với nội dung trên';
           const d3 = (c.detectExtra || '').trim();
-          put(row, 10, d3 ? (det ? det + '\n' : '') + '③ ' + d3 : det);
+          const parts = [];
+          if (d1) parts.push('-Phát hiện ra nguyên nhân: ' + d1);
+          if (d2) parts.push('-Phát hiện ra dạng hỏng hóc:' + (d2.includes('\n') ? '\n' + d2 : ' ' + d2));
+          if (d3) parts.push('-Bổ sung cho đặc tính đặc thù: ' + d3);
+          put(row, 10, parts.join('\n'));
           put(row, 11, c.detection, true);
           const rpn = rpnOf(r, c); if (rpn) put(row, 12, rpn, true);
           put(row, 13, c.action);

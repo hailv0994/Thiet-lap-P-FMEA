@@ -307,13 +307,13 @@
     }
     return names.join(' và ');
   }
-  const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'];
   // Câu phát hiện RIÊNG của 1 yêu cầu (giữ phương pháp/tần suất gốc của nó).
   const ownDetect = (r) => norm(r.detectOwn) || norm(r.detectFailureAuto);
   // Xây chuỗi "Phát hiện ra dạng hỏng hóc" gộp từ các thành viên nhóm.
   //  • Các thành viên CÙNG phương pháp + tần suất (cùng "suffix") → 1 ý:
   //      "Kiểm tra các <chung> bằng … theo tần suất …".
-  //  • Các nhóm con KHÁC phương pháp / tần suất → tách thành nhiều ý (① ② …) xuống dòng.
+  //  • Các nhóm con KHÁC phương pháp / tần suất → nhiều ý: mỗi ý xuống dòng,
+  //      lùi 3 khoảng trống và có dấu "+" ở đầu ("   +…").
   function buildGroupDetect(members) {
     const subs = []; const map = new Map();
     members.forEach((m) => {
@@ -333,7 +333,7 @@
       return s.raw;
     });
     if (sentences.length <= 1) return sentences[0] || (members[0] ? ownDetect(members[0]) : '');
-    return sentences.map((t, i) => (CIRCLED[i] || '(' + (i + 1) + ')') + ' ' + t).join('\n');
+    return sentences.map((t) => '   +' + t).join('\n');
   }
   // Chuẩn hóa lại mọi nhóm gộp trong 1 công đoạn: dựng lại câu phát hiện; nhóm còn 1
   // thành viên thì giải tán (khôi phục câu riêng).
@@ -486,20 +486,26 @@
       </div></td>`;
   }
 
-  function detectCellHTML(p, r, c) {
+  function detectCellHTML(p, r, c, ci) {
     const isVis = isVisualDetect(r, c);
     const hasSC = !!norm(r.classification); // có đặc tính đặc thù (S/A…) → hiện ô bổ sung
+    const firstCause = (ci || 0) === 0;
+    // ② Phát hiện ra dạng hỏng hóc: nguyên nhân đầu hiện đầy đủ (sửa được);
+    //    các nguyên nhân sau chỉ ghi "giống với nội dung trên".
+    const autoBox = firstCause
+      ? `<div class="detect-auto" contenteditable="true" data-field="detectFailureAuto"
+             data-proc="${p.id}" data-req="${r.id}">${esc(r.detectFailureAuto)}</div>`
+      : '<div class="detect-auto detect-same">giống với nội dung trên</div>';
     return `<td data-proc="${p.id}" data-req="${r.id}" data-cause="${c.id}">
       <div class="detect-cell">
-        <div class="detect-label">① Phát hiện ra nguyên nhân (tự phân tích):</div>
+        <div class="detect-label">Phát hiện ra nguyên nhân:</div>
         <textarea data-field="detectCause" rows="2" placeholder="…">${esc(c.detectCause)}</textarea>
         ${aiBtn('detectCause')}
         <span class="visual-auto" id="vis-${c.id}"${isVis ? '' : ' hidden'}
               title="Tự nhận từ nội dung: phát hiện bằng giác quan (tay/mắt/đếm…) → khi D≥7 không bắt buộc đề xuất biện pháp">🖐️ Giác quan (tự nhận)</span>
-        <div class="detect-label">② Phát hiện ra dạng hỏng hóc (tự động từ CP):</div>
-        <div class="detect-auto" contenteditable="true" data-field="detectFailureAuto"
-             data-proc="${p.id}" data-req="${r.id}">${esc(r.detectFailureAuto)}</div>
-        <div class="detect-label detect-extra-label" id="dxl-${c.id}"${hasSC ? '' : ' hidden'}>③ Bổ sung cho đặc tính đặc thù (tự điền):</div>
+        <div class="detect-label">Phát hiện ra dạng hỏng hóc:</div>
+        ${autoBox}
+        <div class="detect-label detect-extra-label" id="dxl-${c.id}"${hasSC ? '' : ' hidden'}>Bổ sung cho đặc tính đặc thù:</div>
         <textarea class="detect-extra" id="dx-${c.id}" data-field="detectExtra" rows="2"${hasSC ? '' : ' hidden'} placeholder="Nội dung phát hiện bổ sung…">${esc(c.detectExtra)}</textarea>
       </div></td>`;
   }
@@ -574,8 +580,8 @@
           tr += numTD(p, r, c, 'occurrence');
           // I dự phòng
           tr += txtTD(p, r, c, 'prevention', 'Quản lý dự phòng (tự phân tích)', true);
-          // J phát hiện (2 ý)
-          tr += detectCellHTML(p, r, c);
+          // J phát hiện ra
+          tr += detectCellHTML(p, r, c, ci);
           // K phát hiện D
           tr += numTD(p, r, c, 'detection');
           // L RPN

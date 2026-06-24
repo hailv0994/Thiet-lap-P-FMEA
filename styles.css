@@ -166,6 +166,7 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
   background: var(--auto); border: 1px dashed var(--line); border-radius: 4px;
   padding: 4px; font-size: 11.5px; white-space: pre-wrap; color: var(--ink-soft);
 }
+.detect-auto.detect-same { font-style: italic; color: var(--muted); }
 .visual-auto {
   display: inline-block; margin: 3px 0 4px; padding: 1px 7px;
   font-size: 10px; color: #1d4ed8; background: #eff6ff;
