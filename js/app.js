@@ -70,14 +70,17 @@
     if (/^(max|min|[≤≥]|tối\s*đa|tối\s*thiểu|không\s*quá|ít\s*nhất)/i.test(spec)) {
       return [name + specDisplay + ' không đạt'];
     }
-    // Không có spec, hoặc spec toàn chữ (không số, không ~) → 1 dạng hỏng
-    if (!spec || (!tol && !/[\d~]/.test(spec))) {
-      return [name + ' không đạt'];
-    }
-    // Có dung sai (±/+x-y) hoặc dạng khoảng (4~5) → 2 phía → 2 dạng hỏng
-    if (tol || /~/.test(spec)) {
+    // Dung sai 2 phía → 2 dạng hỏng. Nhận diện từ:
+    //  - cột dung sai riêng (tol), hoặc spec dạng khoảng "4~5", hoặc
+    //  - dung sai nằm lẫn trong spec: "± x" hoặc "+x / -y" (VD "216.5 ±1", "203.3(+0.3/-1.1)")
+    const twoSidedInSpec = /±/.test(spec) || (/\+\s*[\d.]/.test(spec) && /-\s*[\d.]/.test(spec));
+    if (tol || /~/.test(spec) || twoSidedInSpec) {
       const base = name + specDisplay;
       return [base + ' lớn hơn tiêu chuẩn', base + ' nhỏ hơn tiêu chuẩn'];
+    }
+    // Không có spec, hoặc spec toàn chữ (không số) → 1 dạng hỏng
+    if (!spec || !/\d/.test(spec)) {
+      return [name + ' không đạt'];
     }
     // Spec là số nhưng không có dung sai → 1 dạng hỏng
     return [name + specDisplay + ' không đạt'];
