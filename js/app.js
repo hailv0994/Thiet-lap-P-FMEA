@@ -172,6 +172,31 @@
     return changed;
   }
 
+  // Khi nhập ô Ảnh hưởng GIỐNG Y HỆT một ô ảnh hưởng đã có (TOÀN BỘ P-FMEA) mà ô đó
+  // đã chọn câu kết luận → tự điền câu kết luận + điểm S (chỉ khi hiện chưa chọn).
+  // Trả về true nếu có thay đổi.
+  function autofillFromMatchingEffect(pid, rid) {
+    const r = getReq(pid, rid);
+    if (!r) return false;
+    if (norm(r.effectStdText)) return false; // đã có câu kết luận → không đụng
+    const key = normKey(r.effectAnalysis);
+    if (!key) return false;
+    let src = null;
+    for (const p of state.processes) {
+      for (const or of p.reqs) {
+        if (or.id === rid) continue;
+        if (normKey(or.effectAnalysis) !== key) continue;
+        if (norm(or.effectStdText) && norm(or.severity)) { src = or; break; }
+      }
+      if (src) break;
+    }
+    if (!src) return false;
+    r.effectStdText = src.effectStdText;
+    r.effectScope = src.effectScope;
+    r.severity = src.severity;
+    return true;
+  }
+
   const rpnOf = (req, cause) => {
     const s = +req.severity, o = +cause.occurrence, d = +cause.detection;
     return (s && o && d) ? s * o * d : '';
@@ -1224,8 +1249,10 @@
     if (!text) return;
     if (field === 'effectAnalysis') {
       const r = getReq(pid, rid); if (r) r.effectAnalysis = text;
+      autofillFromMatchingEffect(pid, rid); // chọn ảnh hưởng giống -> tự điền câu kết luận + S
     } else {
       const c = getCause(pid, rid, cid); if (c) c[field] = text;
+      if (field === 'cause') autofillFromMatchingCause(pid, rid, cid); // chọn nguyên nhân giống -> tự điền O/D/dự phòng…
     }
     render();
     scheduleAutosave();
@@ -1668,6 +1695,11 @@
       if (field === 'cause') {
         const { pid, rid, cid } = dataset(el);
         if (autofillFromMatchingCause(pid, rid, cid)) { render(); scheduleAutosave(); }
+      }
+      // Nhập ảnh hưởng giống y hệt -> tự điền câu kết luận + điểm S
+      if (field === 'effectAnalysis') {
+        const { pid, rid } = dataset(el);
+        if (autofillFromMatchingEffect(pid, rid)) { render(); scheduleAutosave(); }
       }
     });
 
