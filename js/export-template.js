@@ -32,6 +32,10 @@
     return (s && o && d) ? s * o * d : '';
   };
   const causeText = (c) => ((c.category ? c.category + ': ' : '') + (c.cause || '')).trim();
+  // "Phát hiện ra dạng hỏng hóc": mỗi ý 1 dòng, prefix "-".
+  const fmtDetectFailure = (text) => String(text == null ? '' : text).split('\n')
+    .map((s) => s.replace(/^\s*[-+]\s*/, '').trim()).filter(Boolean)
+    .map((l) => '-' + l).join('\n');
 
   // Gom yêu cầu cùng mergeId thành nhóm (đại diện = phần tử đầu); giữ thứ tự gốc.
   function reqGroups(reqs) {
@@ -117,12 +121,12 @@
           // Ô phát hiện ra: có nhãn. Nguyên nhân đầu hiện đầy đủ; các nguyên nhân
           // sau ghi "giống với nội dung trên" cho phần dạng hỏng hóc.
           const d1 = (c.detectCause || '').trim();
-          const d2 = ci === 0 ? (r.detectFailureAuto || '').trim() : 'giống với nội dung trên';
+          const d2 = ci === 0 ? fmtDetectFailure(r.detectFailureAuto) : 'Giống với nội dung trên';
           const d3 = (c.detectExtra || '').trim();
           const parts = [];
-          if (d1) parts.push('-Phát hiện ra nguyên nhân: ' + d1);
-          if (d2) parts.push('-Phát hiện ra dạng hỏng hóc:' + (d2.includes('\n') ? '\n' + d2 : ' ' + d2));
-          if (d3) parts.push('-Bổ sung cho đặc tính đặc thù: ' + d3);
+          if (d1) parts.push('Phát hiện ra nguyên nhân:\n' + d1);
+          if (d2) parts.push('Phát hiện ra dạng hỏng hóc:\n' + d2);
+          if (d3) parts.push('Bổ sung cho đặc tính đặc thù:\n' + d3);
           put(row, 10, parts.join('\n'));
           put(row, 11, c.detection, true);
           const rpn = rpnOf(r, c); if (rpn) put(row, 12, rpn, true);

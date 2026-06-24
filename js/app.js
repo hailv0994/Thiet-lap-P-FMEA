@@ -309,11 +309,18 @@
   }
   // Câu phát hiện RIÊNG của 1 yêu cầu (giữ phương pháp/tần suất gốc của nó).
   const ownDetect = (r) => norm(r.detectOwn) || norm(r.detectFailureAuto);
-  // Xây chuỗi "Phát hiện ra dạng hỏng hóc" gộp từ các thành viên nhóm.
-  //  • Các thành viên CÙNG phương pháp + tần suất (cùng "suffix") → 1 ý:
-  //      "Kiểm tra các <chung> bằng … theo tần suất …".
-  //  • Các nhóm con KHÁC phương pháp / tần suất → nhiều ý: mỗi ý xuống dòng,
-  //      lùi 3 khoảng trống và có dấu "+" ở đầu ("   +…").
+  // Định dạng "Phát hiện ra dạng hỏng hóc" để HIỂN THỊ: mỗi ý 1 dòng, prefix "-".
+  function fmtDetectFailure(text) {
+    return String(text == null ? '' : text).split('\n')
+      .map((s) => s.replace(/^\s*[-+]\s*/, '').trim())
+      .filter(Boolean)
+      .map((l) => '-' + l)
+      .join('\n');
+  }
+  // Xây chuỗi "Phát hiện ra dạng hỏng hóc" gộp từ các thành viên nhóm (lưu dạng SẠCH,
+  // mỗi ý 1 dòng — phần prefix "-" thêm khi hiển thị/xuất).
+  //  • Các thành viên CÙNG phương pháp + tần suất → 1 ý "Kiểm tra các <chung> …".
+  //  • Khác phương pháp / tần suất → nhiều ý (mỗi ý 1 dòng).
   function buildGroupDetect(members) {
     const subs = []; const map = new Map();
     members.forEach((m) => {
@@ -332,8 +339,7 @@
       }
       return s.raw;
     });
-    if (sentences.length <= 1) return sentences[0] || (members[0] ? ownDetect(members[0]) : '');
-    return sentences.map((t) => '   +' + t).join('\n');
+    return sentences.join('\n') || (members[0] ? ownDetect(members[0]) : '');
   }
   // Chuẩn hóa lại mọi nhóm gộp trong 1 công đoạn: dựng lại câu phát hiện; nhóm còn 1
   // thành viên thì giải tán (khôi phục câu riêng).
@@ -490,12 +496,11 @@
     const isVis = isVisualDetect(r, c);
     const hasSC = !!norm(r.classification); // có đặc tính đặc thù (S/A…) → hiện ô bổ sung
     const firstCause = (ci || 0) === 0;
-    // ② Phát hiện ra dạng hỏng hóc: nguyên nhân đầu hiện đầy đủ (sửa được);
-    //    các nguyên nhân sau chỉ ghi "giống với nội dung trên".
+    // ② Phát hiện ra dạng hỏng hóc: nhãn riêng dòng, nội dung mỗi ý 1 dòng prefix "-".
+    //    Nguyên nhân đầu hiện đầy đủ; các nguyên nhân sau ghi "Giống với nội dung trên".
     const autoBox = firstCause
-      ? `<div class="detect-auto" contenteditable="true" data-field="detectFailureAuto"
-             data-proc="${p.id}" data-req="${r.id}">${esc(r.detectFailureAuto)}</div>`
-      : '<div class="detect-auto detect-same">giống với nội dung trên</div>';
+      ? `<div class="detect-auto">${esc(fmtDetectFailure(r.detectFailureAuto))}</div>`
+      : '<div class="detect-auto detect-same">Giống với nội dung trên</div>';
     return `<td data-proc="${p.id}" data-req="${r.id}" data-cause="${c.id}">
       <div class="detect-cell">
         <div class="detect-label">Phát hiện ra nguyên nhân:</div>

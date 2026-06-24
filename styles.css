@@ -157,7 +157,8 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
 
 /* Khối phát hiện (cột J) */
 .detect-cell { padding: 5px 6px; }
-.detect-label { font-size: 10px; color: var(--muted); margin: 2px 0 1px; }
+.detect-label { font-size: 10.5px; font-weight: 700; color: var(--ink); margin: 4px 0 1px; }
+.detect-extra-label.detect-label { color: #b45309; }
 .detect-cell textarea {
   width: 100%; border: 1px solid var(--line); border-radius: 4px; resize: vertical;
   font-family: inherit; font-size: 11.5px; padding: 4px; min-height: 28px; margin-bottom: 4px;
