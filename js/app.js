@@ -157,23 +157,26 @@
   function getReq(pid, rid) { const p = getProc(pid); return p && p.reqs.find((r) => r.id === rid); }
   function getCause(pid, rid, cid) { const r = getReq(pid, rid); return r && r.causes.find((c) => c.id === cid); }
 
-  // Khi nhập một nguyên nhân GIỐNG Y HỆT một nguyên nhân đã có (trong CÙNG công đoạn),
-  // tự điền các ô đang trống: Dự phòng, Phát hiện ra nguyên nhân ①, điểm O, điểm D, Biện pháp đề xuất.
+  // Khi nhập một nguyên nhân GIỐNG Y HỆT một nguyên nhân đã có (TOÀN BỘ P-FMEA),
+  // tự điền các ô đang trống: điểm O, điểm D, Biện pháp đề xuất.
+  // (Dự phòng & Phát hiện ra nguyên nhân KHÔNG tự điền — hiện danh sách chọn nhanh thay thế.)
   // Chỉ điền vào ô đang trống (không ghi đè dữ liệu đã nhập). Trả về true nếu có thay đổi.
   function autofillFromMatchingCause(pid, rid, cid) {
-    const p = getProc(pid);
     const c = getCause(pid, rid, cid);
-    if (!p || !c) return false;
+    if (!c) return false;
     const key = normKey(c.cause);
     if (!key) return false;
-    const TARGETS = ['prevention', 'detectCause', 'occurrence', 'detection', 'action'];
+    const TARGETS = ['occurrence', 'detection', 'action'];
     if (TARGETS.every((f) => norm(c[f]))) return false; // không còn ô trống để điền
     let src = null;
-    for (const r of p.reqs) {
-      for (const oc of r.causes) {
-        if (oc.id === cid) continue;
-        if (normKey(oc.cause) !== key) continue;
-        if (TARGETS.some((f) => norm(oc[f]))) { src = oc; break; }
+    for (const p of state.processes) {
+      for (const r of p.reqs) {
+        for (const oc of r.causes) {
+          if (oc.id === cid) continue;
+          if (normKey(oc.cause) !== key) continue;
+          if (TARGETS.some((f) => norm(oc[f]))) { src = oc; break; }
+        }
+        if (src) break;
       }
       if (src) break;
     }
@@ -1303,16 +1306,9 @@
   function onACOutside(e) {
     if (acPop && !acPop.contains(e.target) && e.target !== acTarget) closeAC();
   }
-  function showAutocomplete(el, field) {
-    const typed = ((el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') ? el.value : el.textContent)
-      .replace(/\s+/g, ' ').trim();
-    const q = typed.toLowerCase();
-    if (q.length < 2) { closeAC(); return; }
-    const matches = collectFieldValues(field)
-      .filter((s) => { const sl = s.toLowerCase(); return sl.startsWith(q) && sl !== q; })
-      .slice(0, 6);
-    if (!matches.length) { closeAC(); return; }
-    const { pid, rid, cid } = dataset(el);
+  // Dựng & định vị dropdown gợi ý (dùng chung cho autocomplete gõ-lọc và chooser theo nguyên nhân).
+  function openACList(el, items, head, pickFn) {
+    if (!items.length) { closeAC(); return; }
     if (!acPop) {
       acPop = document.createElement('div');
       acPop.className = 'ac-pop';
@@ -1320,8 +1316,8 @@
       document.addEventListener('mousedown', onACOutside, true);
     }
     acTarget = el;
-    acPop.innerHTML = '<div class="ac-head">Gợi ý — bấm để dùng</div>'
-      + matches.map((s) => `<div class="ac-item" data-text="${esc(s)}">${esc(s)}</div>`).join('');
+    acPop.innerHTML = '<div class="ac-head">' + esc(head) + '</div>'
+      + items.map((s) => `<div class="ac-item" data-text="${esc(s)}">${esc(s)}</div>`).join('');
     const r = el.getBoundingClientRect();
     const pw = Math.max(220, Math.min(r.width || 240, 440));
     let left = r.left, top = r.bottom + 2;
@@ -1334,9 +1330,53 @@
       const it = e.target.closest('.ac-item');
       if (!it) return;
       e.preventDefault(); // giữ focus, không kích hoạt focusout
-      applyAIResult(field, pid, rid, cid, it.getAttribute('data-text'));
+      pickFn(it.getAttribute('data-text'));
       closeAC();
     };
+  }
+  // Gợi ý khi GÕ: lọc theo mấy ký tự đầu.
+  function showAutocomplete(el, field) {
+    const typed = ((el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') ? el.value : el.textContent)
+      .replace(/\s+/g, ' ').trim();
+    const q = typed.toLowerCase();
+    if (q.length < 2) { closeAC(); return; }
+    const matches = collectFieldValues(field)
+      .filter((s) => { const sl = s.toLowerCase(); return sl.startsWith(q) && sl !== q; })
+      .slice(0, 6);
+    const { pid, rid, cid } = dataset(el);
+    openACList(el, matches, 'Gợi ý — bấm để dùng', (t) => applyAIResult(field, pid, rid, cid, t));
+  }
+
+  // Gom các giá trị của 1 cột (prevention/detectCause…) ĐÃ DÙNG cho cùng một nguyên nhân (toàn bộ P-FMEA).
+  function collectCauseLinkedValues(field, causeKey, excludeCid) {
+    const out = [], seen = new Set();
+    (state.processes || []).forEach((p) => (p.reqs || []).forEach((r) => (r.causes || []).forEach((c) => {
+      if (c.id === excludeCid) return;
+      if (normKey(c.cause) !== causeKey) return;
+      const t = norm(c[field]);
+      if (t.length < 2) return;
+      const k = t.toLowerCase();
+      if (seen.has(k)) return;
+      seen.add(k); out.push(t);
+    })));
+    return out;
+  }
+  // Khi bấm vào ô Dự phòng / Phát hiện ra nguyên nhân còn TRỐNG mà nguyên nhân đã có dữ liệu
+  // trước đó ở nơi khác → hiện danh sách tùy chọn để chọn nhanh (không cần gõ).
+  function showCauseOptions(el, field) {
+    const cur = ((el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') ? el.value : el.textContent).trim();
+    if (cur) return; // ô đã có nội dung → không bật chooser
+    const { pid, rid, cid } = dataset(el);
+    const c = getCause(pid, rid, cid);
+    if (!c) return;
+    const causeKey = normKey(c.cause);
+    if (causeKey.length < 2) return;
+    const opts = collectCauseLinkedValues(field, causeKey, cid);
+    if (!opts.length) return;
+    const head = field === 'prevention'
+      ? 'Dự phòng đã dùng cho nguyên nhân này — bấm để chọn'
+      : 'Cách phát hiện đã dùng cho nguyên nhân này — bấm để chọn';
+    openACList(el, opts, head, (t) => applyAIResult(field, pid, rid, cid, t));
   }
 
   // ----- Bộ nhớ câu đã nhập: theo CỘT + BỘ PHẬN -----
@@ -1701,6 +1741,11 @@
     tbody.addEventListener('input', (e) => {
       const el = e.target; const field = el.dataset && el.dataset.field;
       if (field === 'effectAnalysis' || field === 'cause' || field === 'prevention' || field === 'detectCause' || field === 'action') showAutocomplete(el, field);
+    });
+    // Bấm vào ô Dự phòng / Phát hiện ra nguyên nhân (còn trống) -> hiện danh sách chọn nhanh theo nguyên nhân
+    tbody.addEventListener('focusin', (e) => {
+      const el = e.target; const field = el.dataset && el.dataset.field;
+      if (field === 'prevention' || field === 'detectCause') showCauseOptions(el, field);
     });
     tbody.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAC(); });
     // Tự gõ trực tiếp vào ô -> lưu câu vào bộ nhớ của cột đó (khi rời ô)
