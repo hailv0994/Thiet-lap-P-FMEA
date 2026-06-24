@@ -60,6 +60,17 @@
     };
   }
 
+  // Bỏ phần dung sai khỏi spec, chỉ giữ KÍCH THƯỚC DANH NGHĨA.
+  //  "216.5 ±1" → "216.5"; "203.3(+0.3/-1.1)" → "203.3"; "203.3 +0.3/-1.1" → "203.3"
+  function nominalSpec(spec) {
+    let s = norm(spec);
+    s = s.replace(/\s*\(\s*[+\-±][^)]*\)\s*/g, ' ');                  // (+0.3/-1.1) / (±1)
+    s = s.replace(/\s*±\s*[\d.,]+/g, '');                              // ± 1
+    s = s.replace(/\s*[+\-]\s*[\d.,]+\s*\/\s*[+\-]\s*[\d.,]+/g, '');   // +0.3/-1.1
+    s = s.replace(/\s*[+\-]\s*[\d.,]+\s+[+\-]\s*[\d.,]+/g, '');        // +0.3 -1.1
+    return s.replace(/\s+/g, ' ').trim();
+  }
+
   // Xác định danh sách dạng hỏng hóc dựa vào spec và tolerance của hạng mục CP
   function failureModesFor(item) {
     const name = norm(item.name || '');
@@ -73,9 +84,11 @@
     // Dung sai 2 phía → 2 dạng hỏng. Nhận diện từ:
     //  - cột dung sai riêng (tol), hoặc spec dạng khoảng "4~5", hoặc
     //  - dung sai nằm lẫn trong spec: "± x" hoặc "+x / -y" (VD "216.5 ±1", "203.3(+0.3/-1.1)")
+    // Khi tách: CHỈ hiển thị kích thước danh nghĩa, KHÔNG kèm dung sai.
     const twoSidedInSpec = /±/.test(spec) || (/\+\s*[\d.]/.test(spec) && /-\s*[\d.]/.test(spec));
     if (tol || /~/.test(spec) || twoSidedInSpec) {
-      const base = name + specDisplay;
+      const nom = nominalSpec(spec);
+      const base = name + (nom ? ' ' + nom : '');
       return [base + ' lớn hơn tiêu chuẩn', base + ' nhỏ hơn tiêu chuẩn'];
     }
     // Không có spec, hoặc spec toàn chữ (không số) → 1 dạng hỏng
@@ -900,7 +913,9 @@
         // 2. Tái sinh dạng hỏng hóc nếu req chưa được tách (dạng cũ).
         //    Nhận biết dạng cũ: không có splitId VÀ failureMode không chứa
         //    "lớn hơn tiêu chuẩn" / "nhỏ hơn tiêu chuẩn".
-        if (!r.splitId && !/lớn hơn tiêu chuẩn|nhỏ hơn tiêu chuẩn/.test(r.failureMode)) {
+        const isBig = /lớn hơn tiêu chuẩn/.test(r.failureMode);
+        const isSmall = /nhỏ hơn tiêu chuẩn/.test(r.failureMode);
+        if (!r.splitId && !isBig && !isSmall) {
           const parsed = parseReqText(r.reqText);
           const modes  = failureModesFor(parsed);
           if (modes.length === 2) {
@@ -915,6 +930,10 @@
           }
           // 1 mode: cập nhật failureMode sang định dạng mới (có spec)
           r.failureMode = modes[0] || r.failureMode;
+        } else if (isBig || isSmall) {
+          // Đã tách rồi: chuẩn hóa hiển thị — bỏ dung sai, chỉ giữ kích thước danh nghĩa.
+          const modes = failureModesFor(parseReqText(r.reqText));
+          if (modes.length === 2) r.failureMode = isSmall ? modes[1] : modes[0];
         }
         newReqs.push(r);
       });
