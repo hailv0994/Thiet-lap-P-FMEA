@@ -1236,7 +1236,7 @@
     prevention: 'BIỆN PHÁP DỰ PHÒNG để ngăn nguyên nhân xảy ra',
     detectCause: 'cách PHÁT HIỆN RA NGUYÊN NHÂN (phương pháp kiểm soát/kiểm tra)',
   };
-  const FIELD_LABEL = { effectAnalysis: 'Ảnh hưởng', cause: 'Nguyên nhân', prevention: 'Dự phòng', detectCause: 'Phát hiện nguyên nhân' };
+  const FIELD_LABEL = { effectAnalysis: 'Ảnh hưởng', cause: 'Nguyên nhân', prevention: 'Dự phòng', detectCause: 'Phát hiện nguyên nhân', action: 'Biện pháp đề xuất' };
 
   // Yêu cầu AI trả về ~5 mẫu câu ngắn gọn (mỗi câu 1 dòng)
   function buildSuggestPrompt(field, p, r, c) {
@@ -1700,14 +1700,14 @@
     // Gợi ý tự động khi gõ vào ô Ảnh hưởng / Nguyên nhân
     tbody.addEventListener('input', (e) => {
       const el = e.target; const field = el.dataset && el.dataset.field;
-      if (field === 'effectAnalysis' || field === 'cause' || field === 'prevention' || field === 'detectCause') showAutocomplete(el, field);
+      if (field === 'effectAnalysis' || field === 'cause' || field === 'prevention' || field === 'detectCause' || field === 'action') showAutocomplete(el, field);
     });
     tbody.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAC(); });
     // Tự gõ trực tiếp vào ô -> lưu câu vào bộ nhớ của cột đó (khi rời ô)
     tbody.addEventListener('focusout', (e) => {
       const el = e.target; const field = el.dataset && el.dataset.field;
       closeAC();
-      if (field === 'effectAnalysis' || field === 'cause' || field === 'prevention' || field === 'detectCause') {
+      if (field === 'effectAnalysis' || field === 'cause' || field === 'prevention' || field === 'detectCause' || field === 'action') {
         savePhrase(field, (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') ? el.value : el.textContent);
       }
       // Nhập nguyên nhân giống y hệt -> tự điền các ô trống (dự phòng / phát hiện / O / D / biện pháp)
