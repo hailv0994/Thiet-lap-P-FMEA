@@ -277,6 +277,20 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
 }
 .ai-pop-add .btn { padding: 5px 10px; }
 
+/* Dropdown gợi ý tự động (autocomplete) cho ô Ảnh hưởng / Nguyên nhân */
+.ac-pop {
+  position: fixed; z-index: 160; background: #fff;
+  border: 1px solid var(--line-strong); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.20); padding: 4px;
+  max-height: 230px; overflow-y: auto; font-size: 12.5px;
+}
+.ac-head { font-size: 10.5px; color: var(--muted); font-weight: 700; padding: 3px 6px 5px; text-transform: uppercase; letter-spacing: .3px; }
+.ac-item {
+  padding: 6px 8px; border-radius: 5px; cursor: pointer; line-height: 1.35;
+  border: 1px solid transparent; color: var(--ink);
+}
+.ac-item:hover { background: #eef4ff; border-color: #b8cef0; }
+
 /* Modal bối cảnh AI */
 .modal {
   position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 200;

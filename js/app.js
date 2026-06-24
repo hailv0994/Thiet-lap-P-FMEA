@@ -1231,6 +1231,68 @@
     scheduleAutosave();
   }
 
+  // ----- Gợi ý tự động (autocomplete) cho ô Ảnh hưởng & Nguyên nhân -----
+  // Gom các nội dung đã nhập (state hiện tại + bộ nhớ câu đã lưu) của 1 cột.
+  function collectFieldValues(field) {
+    const out = [], seen = new Set();
+    const add = (t) => {
+      t = (t || '').replace(/\s+/g, ' ').trim();
+      if (t.length < 2) return;
+      const k = t.toLowerCase();
+      if (seen.has(k)) return;
+      seen.add(k); out.push(t);
+    };
+    (state.processes || []).forEach((p) => (p.reqs || []).forEach((r) => {
+      if (field === 'effectAnalysis') add(r.effectAnalysis);
+      else (r.causes || []).forEach((c) => add(c[field]));
+    }));
+    getSavedPhrases(field).forEach(add);
+    return out;
+  }
+
+  let acPop = null, acTarget = null;
+  function closeAC() {
+    if (acPop) { acPop.remove(); acPop = null; acTarget = null; document.removeEventListener('mousedown', onACOutside, true); }
+  }
+  function onACOutside(e) {
+    if (acPop && !acPop.contains(e.target) && e.target !== acTarget) closeAC();
+  }
+  function showAutocomplete(el, field) {
+    const typed = ((el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') ? el.value : el.textContent)
+      .replace(/\s+/g, ' ').trim();
+    const q = typed.toLowerCase();
+    if (q.length < 2) { closeAC(); return; }
+    const matches = collectFieldValues(field)
+      .filter((s) => { const sl = s.toLowerCase(); return sl.startsWith(q) && sl !== q; })
+      .slice(0, 6);
+    if (!matches.length) { closeAC(); return; }
+    const { pid, rid, cid } = dataset(el);
+    if (!acPop) {
+      acPop = document.createElement('div');
+      acPop.className = 'ac-pop';
+      document.body.appendChild(acPop);
+      document.addEventListener('mousedown', onACOutside, true);
+    }
+    acTarget = el;
+    acPop.innerHTML = '<div class="ac-head">Gợi ý — bấm để dùng</div>'
+      + matches.map((s) => `<div class="ac-item" data-text="${esc(s)}">${esc(s)}</div>`).join('');
+    const r = el.getBoundingClientRect();
+    const pw = Math.max(220, Math.min(r.width || 240, 440));
+    let left = r.left, top = r.bottom + 2;
+    if (left + pw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - pw - 8);
+    if (top + 220 > window.innerHeight && r.top - 2 > 220) top = r.top - 222;
+    acPop.style.width = pw + 'px';
+    acPop.style.left = left + 'px';
+    acPop.style.top = top + 'px';
+    acPop.onmousedown = (e) => {
+      const it = e.target.closest('.ac-item');
+      if (!it) return;
+      e.preventDefault(); // giữ focus, không kích hoạt focusout
+      applyAIResult(field, pid, rid, cid, it.getAttribute('data-text'));
+      closeAC();
+    };
+  }
+
   // ----- Bộ nhớ câu đã nhập: theo CỘT + BỘ PHẬN -----
   function readPhrases() { try { return JSON.parse(localStorage.getItem(LS_PHRASES) || '{}'); } catch (e) { return {}; } }
   const phraseKey = (field) => field + '|' + ctxKeyName();
@@ -1589,9 +1651,16 @@
     tbody.addEventListener('input', onInput);
     tbody.addEventListener('change', onChange);
     tbody.addEventListener('click', onClick);
+    // Gợi ý tự động khi gõ vào ô Ảnh hưởng / Nguyên nhân
+    tbody.addEventListener('input', (e) => {
+      const el = e.target; const field = el.dataset && el.dataset.field;
+      if (field === 'effectAnalysis' || field === 'cause') showAutocomplete(el, field);
+    });
+    tbody.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAC(); });
     // Tự gõ trực tiếp vào ô -> lưu câu vào bộ nhớ của cột đó (khi rời ô)
     tbody.addEventListener('focusout', (e) => {
       const el = e.target; const field = el.dataset && el.dataset.field;
+      closeAC();
       if (field === 'effectAnalysis' || field === 'cause' || field === 'prevention' || field === 'detectCause') {
         savePhrase(field, (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') ? el.value : el.textContent);
       }
