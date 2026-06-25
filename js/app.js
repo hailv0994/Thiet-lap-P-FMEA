@@ -19,6 +19,9 @@
   const LS_GEMINI_MODEL = 'pfmea_gemini_model_v1';
   const LS_CONTEXT = 'pfmea_context_v1';   // bối cảnh AI theo bộ phận
   const LS_PHRASES = 'pfmea_phrases_v1';   // bộ nhớ câu đã nhập theo cột + bộ phận
+  const LS_HISTORY = 'pfmea_history_v1';  // lịch sử lưu theo key dự án
+  const HISTORY_MAX = 5;                  // tối đa 5 bản / dự án
+  let _baseKeyGuard = '';                 // key của Model base vừa ghép; cảnh báo nếu Lưu trùng
 
   // ----- Cấu hình đồng bộ đám mây (Supabase) — anon key là khóa CÔNG KHAI -----
   const SB_URL = 'https://iccrgjtkaizosocrxsql.supabase.co';
@@ -1046,9 +1049,14 @@
         'Cancel = Hủy (muốn nạp mới hoàn toàn thì bấm "Xóa hết" trước).'
       );
       if (!ok) return;
+      _baseKeyGuard = currentKey(); // ghi nhớ key base để cảnh báo nếu Lưu trùng
       state.processes = mergeWithBase(state.processes, procs);
+      // Cách ly: xóa Model để user phải nhập model mới → không thể Lưu đè lên base vô tình
+      state.meta.model = '';
+      $('#mModel').value = '';
+      $('#projSelect').value = '';  // ngắt liên kết với projSelect của base
       render();
-      flash('Đã ghép CP theo Model base (' + state.processes.length + ' công đoạn). Hãy đổi Model sang model mới rồi bấm Lưu để tạo bản mới.');
+      flash('Đã ghép CP theo Model base (' + state.processes.length + ' công đoạn). ⚠️ Hãy NHẬP TÊN MODEL MỚI vào ô Model rồi bấm Lưu.');
       document.querySelector('.sheet-wrap').scrollIntoView({ behavior: 'smooth' });
       return;
     }
@@ -1188,6 +1196,18 @@
   function writeProjects(map) {
     localStorage.setItem(LS_PROJECTS, JSON.stringify(map));
   }
+  function readHistory() {
+    try { return JSON.parse(localStorage.getItem(LS_HISTORY) || '{}'); } catch (e) { return {}; }
+  }
+  function pushHistory(key, proj) {
+    if (!key || !proj || !(proj.processes || []).length) return;
+    const all = readHistory();
+    const list = all[key] || [];
+    list.unshift({ savedAt: new Date().toISOString(), meta: proj.meta, processes: proj.processes });
+    if (list.length > HISTORY_MAX) list.length = HISTORY_MAX;
+    all[key] = list;
+    try { localStorage.setItem(LS_HISTORY, JSON.stringify(all)); } catch (e) { /* noop */ }
+  }
   function projectKey(meta) {
     return [meta.model, meta.line, meta.product, meta.dept].map((s) => (s || '').trim()).join(' | ').replace(/(\s\|\s)+$/, '');
   }
@@ -1208,13 +1228,29 @@
       $('#mModel').focus(); return;
     }
     if (!state.processes.length) { alert('Chưa có dữ liệu để lưu.'); return; }
-    const map = readProjects();
+
     const key = projectKey(state.meta);
+    // Guard: cảnh báo nếu đang lưu đè lên Model base vừa ghép (model chưa đổi tên)
+    if (_baseKeyGuard && key === _baseKeyGuard) {
+      const ok = confirm(
+        '⚠️ CẢNH BÁO: Tên Model "' + state.meta.model + '" TRÙNG với Model base vừa dùng để ghép!\n\n' +
+        'Nếu lưu, dữ liệu gốc của Model base sẽ bị GHI ĐÈ và mất.\n\n' +
+        'Hãy đổi sang tên Model mới (VD: HGJR-00) ở ô Model rồi Lưu.\n\n' +
+        'Bạn vẫn muốn lưu đè lên Model base?'
+      );
+      if (!ok) { $('#mModel').focus(); return; }
+    }
+
+    const map = readProjects();
+    // Trước khi ghi đè: lưu phiên bản cũ vào lịch sử (nếu dự án đã tồn tại)
+    if (map[key]) pushHistory(key, map[key]);
+
     map[key] = { meta: state.meta, processes: state.processes, savedAt: new Date().toISOString() };
     writeProjects(map);
     cloudPushProject(key, map[key]);   // đẩy lên dữ liệu chung
     refreshProjectUI();
     $('#projSelect').value = key;
+    _baseKeyGuard = ''; // đã lưu thành công → xóa guard
     flash('Đã lưu: ' + key + (sb ? ' (đã đồng bộ chung)' : ''));
   }
 
@@ -1241,6 +1277,58 @@
     refreshProjectUI();
     flash('Đã xóa: ' + key);
   }
+
+  // ===================== Lịch sử lưu =====================
+  function renderHistoryList(key) {
+    const body = $('#histModalBody');
+    if (!key) { body.innerHTML = '<p class="muted" style="padding:8px 0">Chọn dự án để xem lịch sử.</p>'; return; }
+    const all = readHistory();
+    const list = all[key] || [];
+    if (!list.length) {
+      body.innerHTML = '<p class="muted" style="padding:8px 0">Chưa có lịch sử lưu cho dự án này.<br><small>(Lịch sử được ghi mỗi lần ghi đè bản đã lưu — tối đa ' + HISTORY_MAX + ' bản)</small></p>';
+      return;
+    }
+    body.innerHTML = list.map((h, i) => {
+      const dt = new Date(h.savedAt);
+      const dtStr = dt.toLocaleDateString('vi-VN') + ' ' + dt.toLocaleTimeString('vi-VN');
+      const nProcs = (h.processes || []).length;
+      const badge = i === 0 ? '<span class="hist-new-badge">mới nhất</span>' : '';
+      return '<div class="hist-entry">'
+        + '<div class="hist-info">'
+        + '<b>' + esc(dtStr) + badge + '</b>'
+        + '<span class="muted">' + nProcs + ' công đoạn</span>'
+        + '</div>'
+        + '<button class="btn ghost hist-restore" data-idx="' + i + '">⏪ Khôi phục</button>'
+        + '</div>';
+    }).join('');
+    body.querySelectorAll('.hist-restore').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = +btn.dataset.idx;
+        const h = list[idx];
+        if (!h) return;
+        const dtStr = new Date(h.savedAt).toLocaleString('vi-VN');
+        if (state.processes.length && !confirm('Khôi phục bản lưu lúc ' + dtStr + '?\nDữ liệu hiện tại sẽ bị thay thế.')) return;
+        applySnapshot({ meta: h.meta, processes: h.processes });
+        closeHistoryModal();
+        flash('Đã khôi phục bản lưu lúc ' + dtStr + '.');
+      });
+    });
+  }
+
+  function openHistoryModal() {
+    const all = readHistory();
+    const keys = Object.keys(all).filter((k) => all[k] && all[k].length).sort();
+    const sel = $('#histProjSel');
+    readMetaInputs();
+    const curKey = currentKey() || ($('#projSelect').value || '');
+    sel.innerHTML = '<option value="">— Chọn dự án —</option>'
+      + keys.map((k) => '<option value="' + esc(k) + '"' + (k === curKey ? ' selected' : '') + '>' + esc(k) + '</option>').join('');
+    sel.onchange = () => renderHistoryList(sel.value);
+    renderHistoryList(sel.value);
+    $('#histModal').hidden = false;
+  }
+
+  function closeHistoryModal() { $('#histModal').hidden = true; }
 
   function onExportJson() {
     const data = { projects: readProjects(), current: JSON.parse(snapshot()), exportedAt: new Date().toISOString() };
@@ -1917,6 +2005,10 @@
     $('#btnSave').addEventListener('click', onSave);
     $('#projSelect').addEventListener('change', onPickProject);
     $('#btnDeleteProj').addEventListener('click', onDeleteProject);
+    $('#btnHistory').addEventListener('click', openHistoryModal);
+    $('#histModalClose').addEventListener('click', closeHistoryModal);
+    $('#histModalCancel').addEventListener('click', closeHistoryModal);
+    $('#histModal').addEventListener('click', (e) => { if (e.target.id === 'histModal') closeHistoryModal(); });
     $('#btnExportJson').addEventListener('click', onExportJson);
     $('#fileJson').addEventListener('change', onImportJson);
     // Bộ phận/Sản phẩm/Dây chuyền xác định ngữ cảnh P-FMEA (mỗi tổ hợp = 1 bản riêng).
