@@ -187,6 +187,28 @@
     return W;
   }
 
+  // ---- A4 landscape print dimensions (pt) với margins hiện tại ----
+  const A4_W_PT = 841.68; // chiều rộng có thể in A4 landscape, lề trái=phải=0
+  const A4_H_PT = 537.68; // chiều cao có thể in A4 landscape, lề 0.28/0.3/0.1/0.12 in
+  // Chiều rộng 1 char Excel → pt: max digit width Arial 10pt ≈ 7px @ 96 DPI → 5.25 pt
+  const MDW_PT = 5.25;
+
+  // Tổng chiều cao hàng tiêu đề (rows 1..startRow-1) từ XML template.
+  // Dùng ' ht=' (có khoảng trắng trước) để tránh khớp nhầm customHeight=.
+  function calcHeaderH(xml, startRow) {
+    let h = 0;
+    for (let r = 1; r < startRow; r++) {
+      const m = xml.match(new RegExp(`<row r="${r}"[^>]* ht="([\\d.]+)"`));
+      h += m ? +m[1] : 15;
+    }
+    return h;
+  }
+  // Ước lượng tỉ lệ scale in từ tổng chiều rộng cột (fitToWidth=1).
+  function estimatePrintScale(widths) {
+    const totalPt = Object.values(widths).reduce((s, w) => s + w, 0) * MDW_PT;
+    return Math.min(0.95, A4_W_PT / totalPt);
+  }
+
   const LH = 13, PAD = 13; // chiều cao 1 dòng Arial 10pt; đệm = ĐÚNG 1 dòng (ít khoảng trống thừa)
   function cellLines(text, col, widths) {
     const cpl = Math.max(4, Math.floor((widths[col] || 8) * 0.95));
@@ -234,13 +256,15 @@
   }
 
   // ---- Ngắt trang + tách ô gộp tại ranh giới trang, lặp nội dung ----
-  const PAGE_CAP = 800; // chiều cao nội dung (pt) mỗi trang A4 (ước theo scale tự co ~60%)
-  function paginate(H, startRow, lastRow) {
+  // pageCap: chiều cao tối đa cho DATA rows (không tính header) trên 1 trang A4.
+  // Được tính động: A4_H / scale - headerH. Mặc định 650 nếu không truyền vào.
+  function paginate(H, startRow, lastRow, pageCap) {
+    if (pageCap == null) pageCap = 650;
     const segments = []; const breaks = [];
     let pageStart = startRow, cum = 0;
     for (let r = startRow; r <= lastRow; r++) {
       const h = H[r] || 15;
-      if (r > pageStart && cum + h > PAGE_CAP) {
+      if (r > pageStart && cum + h > pageCap) {
         segments.push([pageStart, r - 1]); breaks.push(r - 1); pageStart = r; cum = 0;
       }
       cum += h;
@@ -373,9 +397,14 @@
     const widths = computeWidths(rows);
 
     // chiều cao -> ngắt trang -> tách ô gộp & lặp nội dung -> chiều cao cuối
+    // Tính PAGE_CAP động: dựa trên tổng chiều rộng cột → ước lượng scale in → số điểm data/trang
+    const printScale = estimatePrintScale(widths);
+    const hdrH = calcHeaderH(xml, START);
+    const pageCap = Math.floor(A4_H_PT / printScale - hdrH);
+
     let H = baseHeights(rows, merges, START, lastRow, widths);
     applyMergeDeficit(H, merges, rows, widths);
-    const { segments, breaks } = paginate(H, START, lastRow);
+    const { segments, breaks } = paginate(H, START, lastRow, pageCap);
     const finalMerges = splitMergesByPage(merges, rows, segments);
     H = baseHeights(rows, finalMerges, START, lastRow, widths);
     applyMergeDeficit(H, finalMerges, rows, widths);
