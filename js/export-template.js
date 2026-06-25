@@ -286,7 +286,17 @@
         if (top > bot) continue;
         if (top > r1) { // lặp lại nội dung neo ở đầu trang
           const src = (rows[r1] || {})[c];
-          if (src) (rows[top] || (rows[top] = {}))[c] = src;
+          if (src) {
+            // Cột A (Quy trình): các TRANG SAU chỉ lặp SỐ + TÊN công đoạn
+            // (run đậm đầu tiên), KHÔNG lặp đầy đủ chức năng + yêu cầu.
+            // Tránh việc nội dung cột A dài ép cả hàng cao quá mức -> ô trống.
+            if (+c === 1 && src.rich && src.rich.length) {
+              const title = src.rich[0].t;
+              (rows[top] || (rows[top] = {}))[c] = { v: title, rich: [{ t: title, b: true }], num: false };
+            } else {
+              (rows[top] || (rows[top] = {}))[c] = src;
+            }
+          }
         }
         if (bot > top) out.push([c, top, c2, bot]);
       }
