@@ -82,6 +82,12 @@
     if (/^(max|min|[≤≥]|tối\s*đa|tối\s*thiểu|không\s*quá|ít\s*nhất)/i.test(spec)) {
       return [name + specDisplay + ' không đạt'];
     }
+    // Yêu cầu PHỦ ĐỊNH "Không X" / "Không được X" → dạng hỏng là KHẲNG ĐỊNH "có X".
+    //  VD: "Không dò rỉ khí … dưới 490kPa" → "có dò rỉ khí … dưới 490kPa".
+    if (/^không(\s+được)?\s+\S/i.test(spec)) {
+      const flipped = spec.replace(/^không(\s+được)?\s+/i, 'có ');
+      return [(name ? name + ': ' : '') + flipped];
+    }
     // Dung sai 2 phía → 2 dạng hỏng. Nhận diện từ:
     //  - cột dung sai riêng (tol), hoặc spec dạng khoảng "4~5", hoặc
     //  - dung sai nằm lẫn trong spec: "± x" hoặc "+x / -y" (VD "216.5 ±1", "203.3(+0.3/-1.1)")
