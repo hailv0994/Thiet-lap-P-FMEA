@@ -799,6 +799,8 @@
       $('#sheetGroup').hidden = false;
       $('#btnAddProc').hidden = false;
       $('#btnClear').hidden = false;
+      // Nút "Cập nhật từ CP" chỉ hiện khi đã có dữ liệu P-FMEA (tức là đang cập nhật chứ không nạp mới)
+      $('#btnSync').hidden = !state.processes.length;
     };
     reader.readAsArrayBuffer(file);
   }
@@ -908,6 +910,120 @@
       }
       return { id: uid('p'), no: String(i + 1), name: np.name, func: bp ? bp.func : np.func, reqs };
     });
+  }
+
+  // Cập nhật P-FMEA hiện tại từ CP mới (CÙNG model, CP có thay đổi một số ô).
+  // So khớp theo tên hạng mục (reqNameKey); xử lý từng trường hợp:
+  //  • Không thay đổi (reqText + detectFailureAuto giống hệt) → giữ nguyên.
+  //  • Spec/tol đổi (tên khớp, số khác) → cập nhật reqText + failureMode + (nếu đổi) detect.
+  //  • Hạng mục mới trong CP → thêm dòng trống.
+  //  • Hạng mục không còn trong CP → xóa.
+  function syncFromCP(newProcs) {
+    let nUpdated = 0, nAdded = 0, nRemoved = 0;
+
+    const result = newProcs.map((np) => {
+      const oldProc = state.processes.find((op) => normKey(op.name) === normKey(np.name));
+      if (!oldProc) {
+        // Công đoạn hoàn toàn mới
+        nAdded += np.reqs.length;
+        return np;
+      }
+
+      // Gom các req cũ theo tên hạng mục; lưu cả splitId group
+      const oldByName = {};   // nameKey → [req] (giữ thứ tự: đầu tiên = đại diện nhóm)
+      oldProc.reqs.forEach((r) => {
+        const k = reqNameKey(r);
+        (oldByName[k] || (oldByName[k] = [])).push(r);
+      });
+
+      const usedNameKeys = new Set();
+      const newReqs = [];
+      // Duyệt theo req đã sinh từ CP mới (mỗi CP item → 1 hoặc 2 req)
+      np.reqs.forEach((nr) => {
+        const nk = reqNameKey(nr);
+        usedNameKeys.add(nk);
+        const oldGroup = oldByName[nk];
+        if (!oldGroup) {
+          // Hạng mục mới hoàn toàn
+          newReqs.push(nr);
+          nAdded++;
+          return;
+        }
+        // Kiểm tra thay đổi: reqText (bao gồm spec/tol) và detectFailureAuto
+        const oldRep = oldGroup[0];
+        const reqSame = normKey(nr.reqText) === normKey(oldRep.reqText);
+        const detectSame = normKey(nr.detectFailureAuto) === normKey(oldRep.detectFailureAuto);
+        if (reqSame && detectSame) {
+          // Không thay đổi → giữ nguyên toàn bộ req cũ tương ứng
+          const matchOld = oldGroup.find((or) => fmNumless(or.failureMode) === fmNumless(nr.failureMode))
+            || (oldGroup.length === 1 ? oldGroup[0] : null);
+          if (matchOld) newReqs.push(matchOld);
+          else newReqs.push(nr);
+          return;
+        }
+        // Có thay đổi: tìm req cũ cùng chiều (lớn hơn/nhỏ hơn/không đạt)
+        const matchOld = oldGroup.find((or) => fmNumless(or.failureMode) === fmNumless(nr.failureMode))
+          || (oldGroup.length === 1 ? oldGroup[0] : null);
+        if (matchOld) {
+          // Cập nhật reqText + failureMode theo CP mới, giữ phân tích
+          const updated = Object.assign({}, matchOld, {
+            reqText: nr.reqText,
+            failureMode: nr.failureMode,
+          });
+          if (!detectSame) {
+            updated.detectFailureAuto = nr.detectFailureAuto;
+            updated.detectOwn = nr.detectOwn || nr.detectFailureAuto;
+          }
+          newReqs.push(updated);
+          nUpdated++;
+        } else {
+          // Chiều dạng hỏng mới (VD: trước 1 dạng hỏng, nay tách 2)
+          newReqs.push(nr);
+          nAdded++;
+        }
+      });
+
+      // Đếm hạng mục bị xóa (có trong cũ nhưng không còn trong CP mới)
+      Object.keys(oldByName).forEach((k) => {
+        if (!usedNameKeys.has(k)) nRemoved += oldByName[k].length;
+      });
+
+      return Object.assign({}, oldProc, { reqs: newReqs });
+    });
+
+    // Đếm công đoạn cũ bị bỏ
+    state.processes.forEach((op) => {
+      if (!newProcs.find((np) => normKey(np.name) === normKey(op.name))) {
+        nRemoved += op.reqs.length;
+      }
+    });
+
+    return { procs: result, nUpdated, nAdded, nRemoved };
+  }
+
+  function onSyncFromCP() {
+    if (!workbook) { alert('Hãy tải file CP mới trước.'); return; }
+    if (!state.processes.length) { alert('Chưa có dữ liệu P-FMEA để cập nhật.'); return; }
+    const { procs, skipped } = parseAllProcs();
+    if (!procs.length) { alert('Không tìm thấy công đoạn nào có hạng mục chất lượng trong file.'); return; }
+    const ok = confirm(
+      'Cập nhật P-FMEA từ CP mới:\n' +
+      '  • Hạng mục KHÔNG ĐỔI → giữ nguyên toàn bộ phân tích.\n' +
+      '  • Hạng mục THAY ĐỔI spec/phương pháp → cập nhật reqText/detect, giữ nguyên phân tích.\n' +
+      '  • Hạng mục MỚI trong CP → thêm dòng trống.\n' +
+      '  • Hạng mục BỊ XÓA khỏi CP → xóa khỏi P-FMEA.\n\n' +
+      'Tiếp tục?'
+    );
+    if (!ok) return;
+    const { procs: updated, nUpdated, nAdded, nRemoved } = syncFromCP(procs);
+    state.processes = updated;
+    render();
+    const parts = [];
+    if (nUpdated) parts.push(`${nUpdated} hạng mục cập nhật`);
+    if (nAdded) parts.push(`${nAdded} hạng mục mới`);
+    if (nRemoved) parts.push(`${nRemoved} hạng mục đã xóa`);
+    flash('Đã cập nhật từ CP: ' + (parts.length ? parts.join(', ') : 'không có thay đổi') + '.');
+    document.querySelector('.sheet-wrap').scrollIntoView({ behavior: 'smooth' });
   }
 
   function onLoadProc() {
@@ -1794,6 +1910,7 @@
 
     $('#fileCP').addEventListener('change', onFile);
     $('#btnLoad').addEventListener('click', onLoadProc);
+    $('#btnSync').addEventListener('click', onSyncFromCP);
     $('#btnAddProc').addEventListener('click', onAddProc);
     $('#btnClear').addEventListener('click', onClear);
     $('#btnExport').addEventListener('click', onExportClick);
