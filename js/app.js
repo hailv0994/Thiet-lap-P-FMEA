@@ -801,7 +801,6 @@
       const sheets = window.CPParser.listSheets(workbook);
       $('#sheetInfo').textContent = `Đã đọc ${sheets.length} sheet — bấm để nạp tất cả công đoạn.`;
       $('#sheetGroup').hidden = false;
-      $('#btnAddProc').hidden = false;
       $('#btnClear').hidden = false;
       // Nút "Cập nhật từ CP" chỉ hiện khi đã có dữ liệu P-FMEA (tức là đang cập nhật chứ không nạp mới)
       $('#btnSync').hidden = !state.processes.length;
@@ -1078,14 +1077,6 @@
     render();
   }
 
-  function onAddProc() {
-    state.processes.push({
-      id: uid('p'), no: '', name: '', func: '',
-      reqs: [reqFromItem({ name: '', requirement: '' })],
-    });
-    render();
-  }
-
   function onClear() {
     if (state.processes.length && !confirm('Xóa toàn bộ dữ liệu P-FMEA?')) return;
     state.processes = []; _baseKeyGuard = ''; _openedKey = ''; render();
@@ -1305,16 +1296,82 @@
     scheduleAutosave();
   }
 
-  function onDeleteProject() {
-    const key = $('#projSelect').value;
-    if (!key) { alert('Chọn một dự án để xóa.'); return; }
-    if (!confirm('Xóa dự án đã lưu "' + key + '"?')) return;
+  function deleteProjectByKey(key) {
     const map = readProjects();
+    if (!map[key]) return;
     delete map[key];
     writeProjects(map);
     refreshProjectUI();
     flash('Đã xóa: ' + key);
   }
+
+  // ===================== Thư viện model đã lưu =====================
+  // Liệt kê TẤT CẢ model đã lưu (mọi Bộ phận/SP/Dây chuyền), cho mở lại hoặc xóa.
+  function renderLibraryList(filter) {
+    const body = $('#libModalBody');
+    const map = readProjects();
+    const q = (filter || '').trim().toLowerCase();
+    let entries = Object.keys(map).map((k) => ({ k, meta: map[k].meta || {}, proj: map[k] }));
+    if (q) {
+      entries = entries.filter((e) => {
+        const hay = [e.meta.model, e.meta.dept, e.meta.product, e.meta.line, e.k].join(' ').toLowerCase();
+        return hay.includes(q);
+      });
+    }
+    entries.sort((a, b) =>
+      String(a.meta.dept || '').localeCompare(String(b.meta.dept || ''))
+      || String(a.meta.product || '').localeCompare(String(b.meta.product || ''))
+      || String(a.meta.line || '').localeCompare(String(b.meta.line || ''))
+      || String(a.meta.model || '').localeCompare(String(b.meta.model || '')));
+    if (!entries.length) {
+      body.innerHTML = '<p class="muted" style="padding:8px 0">' + (q ? 'Không tìm thấy model nào khớp.' : 'Chưa có model nào được lưu.') + '</p>';
+      return;
+    }
+    body.innerHTML = entries.map((e) => {
+      const m = e.meta;
+      const ctx = [m.dept, m.product, m.line].filter(Boolean).join(' › ');
+      const savedAt = e.proj.savedAt ? new Date(e.proj.savedAt).toLocaleString('vi-VN') : '';
+      const nProcs = (e.proj.processes || []).length;
+      return '<div class="hist-entry">'
+        + '<div class="hist-info">'
+        + '<b>' + esc(m.model || e.k) + '</b>'
+        + '<span class="muted">' + esc(ctx) + (ctx ? ' · ' : '') + nProcs + ' công đoạn' + (savedAt ? ' · ' + esc(savedAt) : '') + '</span>'
+        + '</div>'
+        + '<div style="display:flex;gap:6px">'
+        + '<button class="btn ghost lib-open" data-key="' + esc(e.k) + '">📂 Mở</button>'
+        + '<button class="btn ghost lib-del" data-key="' + esc(e.k) + '" title="Xóa model này">🗑</button>'
+        + '</div></div>';
+    }).join('');
+    body.querySelectorAll('.lib-open').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.key;
+        const proj = readProjects()[key];
+        if (!proj) return;
+        if (state.processes.length && !confirm('Mở model "' + ((proj.meta || {}).model || key) + '"?\nDữ liệu hiện tại chưa lưu sẽ bị thay thế.')) return;
+        applySnapshot(proj);
+        closeLibraryModal();
+        flash('Đã mở model: ' + ((proj.meta || {}).model || key));
+      });
+    });
+    body.querySelectorAll('.lib-del').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.key;
+        const proj = readProjects()[key];
+        if (!proj) return;
+        if (!confirm('Xóa model "' + ((proj.meta || {}).model || key) + '" khỏi thư viện?')) return;
+        deleteProjectByKey(key);
+        renderLibraryList($('#libSearch').value);
+      });
+    });
+  }
+
+  function openLibraryModal() {
+    cloudPullProjects();         // làm tươi dữ liệu chung
+    $('#libSearch').value = '';
+    renderLibraryList('');
+    $('#libModal').hidden = false;
+  }
+  function closeLibraryModal() { $('#libModal').hidden = true; }
 
   // ===================== Lịch sử lưu =====================
   function renderHistoryList(key) {
@@ -1444,7 +1501,7 @@
       items.map((v) => `<option value="${esc(v)}"${v === keep ? ' selected' : ''}>${esc(v)}</option>`).join('');
     sel.value = has ? keep : '';
   }
-  function fillDept(keep) { fillSelect('#mDept', Object.keys(TREE()), keep, '— Chọn bộ phận —'); }
+  function fillDept(keep) { fillSelect('#mDept', Object.keys(TREE()), keep, 'Chọn bộ phận'); }
   // Sản phẩm / Dây chuyền: ô nhập có gợi ý — chọn từ danh sách hoặc tự nhập tự do.
   function fillInputList(inputId, listId, items, keep) {
     $(listId).innerHTML = items.map((v) => `<option value="${esc(v)}"></option>`).join('');
@@ -1799,10 +1856,9 @@
     closeMergePop();
     const p = getProc(pid), r = getReq(pid, rid);
     if (!p || !r) return;
-    // Ứng viên gộp: MỌI dạng hỏng khác trong cùng công đoạn (không còn giới hạn cùng
-    // dụng cụ/tần suất), chưa nằm cùng nhóm với yêu cầu này.
-    const cands = p.reqs.filter((r2) => r2.id !== rid
-      && !(r.mergeId && r2.mergeId === r.mergeId));
+    // Ứng viên gộp: các dạng hỏng khác trong cùng công đoạn mà CHƯA thuộc nhóm gộp nào.
+    // (Dạng hỏng đã được gộp vào một ô khác sẽ KHÔNG còn hiện ở đây để tránh trùng/xung đột.)
+    const cands = p.reqs.filter((r2) => r2.id !== rid && !r2.mergeId);
     mergePop = document.createElement('div');
     mergePop.className = 'ai-pop merge-pop';
     let body;
@@ -2056,21 +2112,24 @@
     writeMetaInputs();   // meta rỗng -> dropdown để trống
     refreshProjectUI();  // chỉ nạp danh sách dự án đã lưu vào ô "Mở dự án"
     render();            // bảng trống
-    $('#btnAddProc').hidden = false; $('#btnClear').hidden = false;
+    $('#btnClear').hidden = false;
 
     $('#fileCP').addEventListener('change', onFile);
     $('#btnLoad').addEventListener('click', onLoadProc);
     $('#btnSync').addEventListener('click', onSyncFromCP);
-    $('#btnAddProc').addEventListener('click', onAddProc);
     $('#btnClear').addEventListener('click', onClear);
     $('#btnExport').addEventListener('click', onExportClick);
     $('#btnSave').addEventListener('click', onSave);
     $('#projSelect').addEventListener('change', onPickProject);
-    $('#btnDeleteProj').addEventListener('click', onDeleteProject);
     $('#btnHistory').addEventListener('click', openHistoryModal);
     $('#histModalClose').addEventListener('click', closeHistoryModal);
     $('#histModalCancel').addEventListener('click', closeHistoryModal);
     $('#histModal').addEventListener('click', (e) => { if (e.target.id === 'histModal') closeHistoryModal(); });
+    $('#btnLibrary').addEventListener('click', openLibraryModal);
+    $('#libModalClose').addEventListener('click', closeLibraryModal);
+    $('#libModalCancel').addEventListener('click', closeLibraryModal);
+    $('#libModal').addEventListener('click', (e) => { if (e.target.id === 'libModal') closeLibraryModal(); });
+    $('#libSearch').addEventListener('input', (e) => renderLibraryList(e.target.value));
     $('#btnExportJson').addEventListener('click', onExportJson);
     $('#fileJson').addEventListener('change', onImportJson);
     // Bộ phận/Sản phẩm/Dây chuyền xác định ngữ cảnh P-FMEA (mỗi tổ hợp = 1 bản riêng).

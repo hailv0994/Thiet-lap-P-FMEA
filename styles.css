@@ -242,10 +242,10 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
 .meta-bar .tool-group { gap: 7px; flex: 0 0 auto; }
 .meta-bar label { white-space: nowrap; }
 .inp-md { width: 130px; }
-/* nới rộng + chừa chỗ cho mũi tên ▼ để tên dài không che ký hiệu */
-#mProduct { width: 185px; padding-right: 22px; }
-#mDept { width: 156px; } /* Bộ phận rộng hơn 20% so với inp-md */
-#mLine { width: 165px; padding-right: 22px; }
+/* nới rộng + chừa chỗ cho mũi tên ▼ để tên dài không che ký hiệu (đã thu hẹp ~20%) */
+#mProduct { width: 148px; padding-right: 22px; }
+#mDept { width: 125px; }
+#mLine { width: 132px; padding-right: 22px; }
 #projSelect { width: 130px; padding-right: 22px; } /* bằng ô Model (inp-md) */
 #projSelect:disabled { background: #f0f0f1; color: var(--muted); cursor: not-allowed; }
 .btn-light { background: #fff; color: var(--ink); border-color: #bdbdbd; }
