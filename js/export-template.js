@@ -188,10 +188,13 @@
   }
 
   // ---- A4 landscape print dimensions (pt) với margins hiện tại ----
-  const A4_W_PT = 841.68; // chiều rộng có thể in A4 landscape, lề trái=phải=0
+  const A4_W_PT = 841.68; // chiều rộng có thể in A4 landscape (pt)
   const A4_H_PT = 537.68; // chiều cao có thể in A4 landscape, lề 0.28/0.3/0.1/0.12 in
   // Chiều rộng 1 char Excel → pt: max digit width Arial 10pt ≈ 7px @ 96 DPI → 5.25 pt
   const MDW_PT = 5.25;
+  // Lề trái/phải = chiều rộng cột D (phát hiện ra, col 11 = FIXED_W[11]=5 char units)
+  const MARGIN_LR_PT = FIXED_W[11] * MDW_PT; // 5 × 5.25 = 26.25 pt
+  const MARGIN_LR_IN = MARGIN_LR_PT / 72;    // ≈ 0.3646 in
 
   // Tổng chiều cao hàng tiêu đề (rows 1..startRow-1) từ XML template.
   // Dùng ' ht=' (có khoảng trắng trước) để tránh khớp nhầm customHeight=.
@@ -203,10 +206,10 @@
     }
     return h;
   }
-  // Ước lượng tỉ lệ scale in từ tổng chiều rộng cột (fitToWidth=1).
+  // Ước lượng tỉ lệ scale in từ tổng chiều rộng cột (fitToWidth=1), trừ lề trái/phải.
   function estimatePrintScale(widths) {
     const totalPt = Object.values(widths).reduce((s, w) => s + w, 0) * MDW_PT;
-    return Math.min(0.95, A4_W_PT / totalPt);
+    return Math.min(0.95, (A4_W_PT - 2 * MARGIN_LR_PT) / totalPt);
   }
 
   const LH = 13, PAD = 13; // chiều cao 1 dòng Arial 10pt; đệm = ĐÚNG 1 dòng (ít khoảng trống thừa)
@@ -402,20 +405,34 @@
     const hdrH = calcHeaderH(xml, START);
     const pageCap = Math.floor(A4_H_PT / printScale - hdrH);
 
+    // Pass 1: ước lượng ngắt trang từ H gốc (trước khi tách ô gộp)
     let H = baseHeights(rows, merges, START, lastRow, widths);
     applyMergeDeficit(H, merges, rows, widths);
+    const { segments: seg0 } = paginate(H, START, lastRow, pageCap);
+
+    // Pass 2: tách ô gộp sơ bộ theo seg0, tính lại H (phản ánh chiều cao thực sau tách),
+    // re-paginate để có ngắt trang chính xác hơn.
+    // Dùng bản sao rows để giữ nguyên dữ liệu gốc cho pass cuối.
+    const rowsTmp = {};
+    for (const r in rows) { rowsTmp[r] = {}; for (const c in rows[r]) rowsTmp[r][c] = rows[r][c]; }
+    const splitM0 = splitMergesByPage(merges, rowsTmp, seg0);
+    H = baseHeights(rowsTmp, splitM0, START, lastRow, widths);
+    applyMergeDeficit(H, splitM0, rowsTmp, widths);
     const { segments, breaks } = paginate(H, START, lastRow, pageCap);
+
+    // Pass cuối: tách ô gộp theo ngắt trang chính xác, tính H cho XML
     const finalMerges = splitMergesByPage(merges, rows, segments);
     H = baseHeights(rows, finalMerges, START, lastRow, widths);
     applyMergeDeficit(H, finalMerges, rows, widths);
 
-    // ghi đè các dòng dữ liệu
+    // Xóa tất cả hàng template >= START, sau đó chèn các hàng dữ liệu đã tính
+    xml = xml.replace(/<row r="(\d+)"(?:[^>]*\/>|[^>]*>[\s\S]*?<\/row>)/g,
+      (m, r) => +r >= START ? '' : m);
+    let dataXml = '';
     for (let rn = START; rn <= lastRow; rn++) {
-      const newRow = genRow(rn, rows[rn] || {}, ids, H[rn] || 15);
-      const re = new RegExp(`<row r="${rn}"[^>]*(?:/>|>[\\s\\S]*?</row>)`);
-      if (re.test(xml)) xml = xml.replace(re, newRow);
-      else xml = xml.replace('</sheetData>', newRow + '</sheetData>');
+      dataXml += genRow(rn, rows[rn] || {}, ids, H[rn] || 15);
     }
+    xml = xml.replace('</sheetData>', dataXml + '</sheetData>');
 
     // merge dữ liệu (đã tách theo trang)
     if (finalMerges.length) {
@@ -432,7 +449,7 @@
 
     // lề + scale in A4 + đánh số trang (vào dòng "Trang ページ") + ngắt trang thủ công
     // bottom/footer đủ rộng để in dòng "Bản áp dụng số…" + "Thời gian lưu…" ở cuối mỗi trang
-    xml = xml.replace(/<pageMargins[^>]*\/>/, '<pageMargins left="0" right="0" top="0.28" bottom="0.3" header="0.1" footer="0.12"/>');
+    xml = xml.replace(/<pageMargins[^>]*\/>/, `<pageMargins left="${MARGIN_LR_IN.toFixed(4)}" right="${MARGIN_LR_IN.toFixed(4)}" top="0.28" bottom="0.3" header="0.1" footer="0.12"/>`);
     // TỰ CO vừa 1 trang ngang: Excel tự chọn % để lấp đầy bề ngang A4, không thiếu cột
     xml = xml.replace(/<pageSetup[^>]*\/>/, '<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>');
     // fitToWidth chỉ có hiệu lực khi sheetPr có <pageSetUpPr fitToPage="1"/>
@@ -471,7 +488,7 @@
 
     // Print_Titles (lặp tiêu đề) + mở rộng Print_Area
     let wbxml = dec.decode(files['xl/workbook.xml']);
-    const areaEnd = Math.max(lastRow, 60);
+    const areaEnd = lastRow;
     wbxml = wbxml.replace(
       /<definedName name="_xlnm.Print_Area" localSheetId="0">[^<]*<\/definedName>/,
       `<definedName name="_xlnm.Print_Area" localSheetId="0">FORMAT!$A$1:$S$${areaEnd}</definedName>` +
