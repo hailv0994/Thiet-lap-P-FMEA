@@ -233,6 +233,7 @@
         const cell = vals[c];
         if (cell.num) continue;
         if (+c === 5) { hasSC = true; continue; }
+        if (+c === 1) continue; // cột A không drive chiều cao (tránh hàng bị thổi phồng)
         maxLines = Math.max(maxLines, cellLines(cell.v, +c, widths));
       }
       let h = maxLines * LH + PAD;
