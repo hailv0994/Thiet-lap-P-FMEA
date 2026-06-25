@@ -143,6 +143,10 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
   width: 100%; border: 1px solid var(--line); border-radius: 4px; resize: vertical;
   font-family: inherit; font-size: 11.5px; padding: 4px; min-height: 34px; margin-bottom: 4px;
 }
+.effect-cell textarea.has-base-suggest {
+  border-color: #2f80ed; background: #eef5ff; cursor: pointer;
+}
+.effect-cell textarea.has-base-suggest::placeholder { color: #2f80ed; font-weight: 600; }
 .effect-arrow { color: var(--muted); font-size: 11px; margin: 2px 0; }
 .effect-cell select {
   width: 100%; font-size: 11px; padding: 4px; margin-top: 2px; background: var(--auto);

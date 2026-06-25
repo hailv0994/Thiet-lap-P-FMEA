@@ -482,7 +482,12 @@
     const chosen = !!r.effectStdText;
     return `<td class="auto" rowspan="@RS@" data-proc="${p.id}" data-req="${r.id}">
       <div class="effect-cell">
-        <textarea data-field="effectAnalysis" rows="2" placeholder="① Tự phân tích ảnh hưởng…">${esc(r.effectAnalysis)}</textarea>
+        ${(() => {
+          const hasSug = r.baseSuggest && r.baseSuggest.length && !norm(r.effectAnalysis);
+          const ph = hasSug ? '⬇ Bấm để chọn ảnh hưởng từ Model base…' : '① Tự phân tích ảnh hưởng…';
+          const cls = hasSug ? ' class="has-base-suggest"' : '';
+          return `<textarea data-field="effectAnalysis"${cls} rows="2" placeholder="${ph}">${esc(r.effectAnalysis)}</textarea>`;
+        })()}
         ${aiBtn('effectAnalysis')}
         <div class="effect-std" data-proc="${p.id}" data-req="${r.id}">
           <div class="std-pick"${chosen ? ' style="display:none"' : ''}>
@@ -840,9 +845,41 @@
     return normKey(n);
   }
 
-  // Ghép CP mới theo Model base: cấu trúc lấy theo CP mới; hạng mục trùng tên thì
-  // GIỮ phân tích của base, chỉ cập nhật kích thước (reqText) theo CP mới; hạng mục
-  // mới thì giữ nguyên bản tự sinh từ CP; hạng mục base không có trong CP thì bỏ.
+  // Chuẩn hóa dạng hỏng hóc, BỎ mọi giá trị số (thay bằng '#') để so "chỉ khác số".
+  //  "kích thước 203.3 lớn hơn tiêu chuẩn" và "… 210.5 lớn hơn …" → cùng key.
+  function fmNumless(fm) {
+    return normKey(String(fm || '').replace(/\d+(?:[.,]\d+)?/g, '#'));
+  }
+  // Gom toàn bộ phân tích của 1 yêu cầu base (để áp khi GIỐNG HỆT hoặc khi chọn gợi ý).
+  function baseAnalysisOf(br) {
+    return {
+      effectAnalysis: br.effectAnalysis, effectStdText: br.effectStdText,
+      effectScope: br.effectScope, severity: br.severity,
+      classification: br.classification,
+      detectFailureAuto: br.detectFailureAuto, detectOwn: br.detectOwn,
+      causes: (br.causes || []).map((c) => Object.assign({}, c)),
+    };
+  }
+  // Tạo yêu cầu mới: GIỮ dạng hỏng/kích thước theo CP mới (nr), áp phân tích từ base (a).
+  function reqFromBaseAnalysis(nr, a) {
+    return {
+      id: uid('r'), splitId: nr.splitId, reqText: nr.reqText, failureMode: nr.failureMode,
+      effectAnalysis: a.effectAnalysis || '', effectStdText: a.effectStdText || '',
+      effectScope: a.effectScope || '', severity: a.severity || '',
+      classification: a.classification || nr.classification || '',
+      detectFailureAuto: a.detectFailureAuto || nr.detectFailureAuto,
+      detectOwn: a.detectOwn || nr.detectOwn || nr.detectFailureAuto,
+      causes: (a.causes && a.causes.length ? a.causes : [newCause()])
+        .map((c) => Object.assign({}, c, { id: uid('c') })),
+    };
+  }
+
+  // Ghép CP mới theo Model base. Cấu trúc lấy theo CP mới (model ít công đoạn hơn →
+  // CHỈ hiện công đoạn của CP mới). So khớp theo DẠNG HỎNG HÓC:
+  //  • Giống hệt (cả số)  → tự áp toàn bộ phân tích base.
+  //  • Chỉ khác giá trị số → giữ bản tự sinh từ CP (số mới), ĐÍNH gợi ý base (baseSuggest)
+  //    để ô Ảnh hưởng cho chọn; chọn xong mới áp phân tích.
+  //  • Dạng hỏng mới       → giữ nguyên bản tự sinh từ CP.
   function mergeWithBase(baseProcs, newProcs) {
     const baseByName = {};
     baseProcs.forEach((p) => { baseByName[normKey(p.name)] = p; });
@@ -850,25 +887,21 @@
       const bp = baseByName[normKey(np.name)];
       let reqs;
       if (bp) {
-        const baseByItem = {};
-        bp.reqs.forEach((r) => { baseByItem[reqNameKey(r)] = r; });
+        const baseByFM = {};       // key normKey(failureMode) → yêu cầu base (giống hệt)
+        const baseByNumless = {};  // key bỏ-số → [yêu cầu base] (khác số)
+        bp.reqs.forEach((r) => {
+          baseByFM[normKey(r.failureMode)] = r;
+          const nk = fmNumless(r.failureMode);
+          (baseByNumless[nk] || (baseByNumless[nk] = [])).push(r);
+        });
         reqs = np.reqs.map((nr) => {
-          const br = baseByItem[reqNameKey(nr)];
-          if (!br) return nr; // hạng mục mới -> giữ bản tự sinh từ CP
-          // trùng tên -> giữ phân tích base, chỉ cập nhật kích thước theo CP mới
-          return {
-            id: uid('r'),
-            reqText: nr.reqText,
-            failureMode: br.failureMode,
-            effectAnalysis: br.effectAnalysis,
-            effectStdText: br.effectStdText,
-            effectScope: br.effectScope,
-            severity: br.severity,
-            classification: br.classification,
-            detectFailureAuto: br.detectFailureAuto,
-            causes: (br.causes && br.causes.length ? br.causes : [newCause()])
-              .map((c) => Object.assign({}, c, { id: uid('c') })),
-          };
+          const exact = baseByFM[normKey(nr.failureMode)];
+          if (exact) return reqFromBaseAnalysis(nr, baseAnalysisOf(exact)); // GIỐNG HỆT
+          const numless = baseByNumless[fmNumless(nr.failureMode)];
+          if (numless && numless.length) {                                  // CHỈ KHÁC SỐ
+            return Object.assign({}, nr, { baseSuggest: numless.map(baseAnalysisOf) });
+          }
+          return nr;                                                        // dạng hỏng mới
         });
       } else {
         reqs = np.reqs; // công đoạn mới hoàn toàn
@@ -890,9 +923,10 @@
       const ok = confirm(
         'Đang có dữ liệu (Model base) đang mở.\n\n' +
         'OK = GHÉP CP mới theo Model base:\n' +
-        '  • Giữ nguyên phân tích của base, chỉ cập nhật kích thước theo CP mới.\n' +
-        '  • Thêm hạng mục mới mà base chưa có (tự sinh từ CP).\n' +
-        '  • Bỏ hạng mục base không có trong CP mới.\n\n' +
+        '  • Dạng hỏng GIỐNG HỆT base → tự điền toàn bộ phân tích.\n' +
+        '  • Dạng hỏng CHỈ KHÁC SỐ → bấm ô Ảnh hưởng để chọn phương án base (rồi tự điền hết).\n' +
+        '  • Dạng hỏng MỚI mà base chưa có → để trống (tự sinh từ CP).\n' +
+        '  • Model ít công đoạn hơn → chỉ hiện công đoạn của CP mới.\n\n' +
         'Cancel = Hủy (muốn nạp mới hoàn toàn thì bấm "Xóa hết" trước).'
       );
       if (!ok) return;
@@ -1438,6 +1472,41 @@
     openACList(el, opts, head, (t) => applyAIResult(field, pid, rid, cid, t));
   }
 
+  // Áp TOÀN BỘ phân tích base (1 phương án) vào yêu cầu khi khác-số rồi chọn ở ô Ảnh hưởng.
+  function applyBaseSuggest(pid, rid, a) {
+    const r = getReq(pid, rid);
+    if (!r || !a) return;
+    r.effectAnalysis = a.effectAnalysis || '';
+    r.effectStdText = a.effectStdText || '';
+    r.effectScope = a.effectScope || '';
+    r.severity = a.severity || '';
+    if (a.classification) r.classification = a.classification;
+    if (a.detectFailureAuto) r.detectFailureAuto = a.detectFailureAuto;
+    if (a.detectOwn) r.detectOwn = a.detectOwn;
+    r.causes = (a.causes && a.causes.length ? a.causes : r.causes)
+      .map((c) => Object.assign({}, c, { id: uid('c') }));
+    delete r.baseSuggest; // đã áp dụng → bỏ gợi ý
+    if (r.mergeId) syncMergeGroup(getProc(pid), r);
+    render();
+    scheduleAutosave();
+  }
+  // Khi bấm vào ô Ảnh hưởng (còn trống) của yêu cầu CHỈ-KHÁC-SỐ so với base →
+  // hiện danh sách phương án base tương ứng để chọn nhanh; chọn xong áp toàn bộ phân tích.
+  function showBaseEffectOptions(el) {
+    const cur = ((el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') ? el.value : el.textContent).trim();
+    if (cur) return; // ô đã có nội dung → không bật chooser
+    const { pid, rid } = dataset(el);
+    const r = getReq(pid, rid);
+    if (!r || !r.baseSuggest || !r.baseSuggest.length) return;
+    const labelOf = (a) => norm(a.effectAnalysis) || norm(a.effectStdText) || '(phương án base)';
+    const multi = r.baseSuggest.length > 1;
+    const items = r.baseSuggest.map((a, i) => (multi ? (i + 1) + '. ' : '') + labelOf(a));
+    openACList(el, items, 'Phương án từ Model base — bấm để áp dụng', (t) => {
+      const idx = items.indexOf(t);
+      applyBaseSuggest(pid, rid, r.baseSuggest[idx >= 0 ? idx : 0]);
+    });
+  }
+
   // ----- Bộ nhớ câu đã nhập: theo CỘT + BỘ PHẬN -----
   function readPhrases() { try { return JSON.parse(localStorage.getItem(LS_PHRASES) || '{}'); } catch (e) { return {}; } }
   const phraseKey = (field) => field + '|' + ctxKeyName();
@@ -1801,6 +1870,7 @@
     tbody.addEventListener('focusin', (e) => {
       const el = e.target; const field = el.dataset && el.dataset.field;
       if (field === 'prevention' || field === 'detectCause') showCauseOptions(el, field);
+      if (field === 'effectAnalysis') showBaseEffectOptions(el);
     });
     tbody.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAC(); });
     // Tự gõ trực tiếp vào ô -> lưu câu vào bộ nhớ của cột đó (khi rời ô)
