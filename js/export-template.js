@@ -80,6 +80,11 @@
       if (v === '' || v == null) return;
       (rows[r] || (rows[r] = {}))[c] = { v, num: !!num };
     };
+    // Ghi ô rich text: plain dùng để tính chiều cao/độ rộng; runs để render đậm.
+    const putRich = (r, c, plain, runs) => {
+      if (!plain) return;
+      (rows[r] || (rows[r] = {}))[c] = { v: plain, rich: runs, num: false };
+    };
 
     let row = startRow;
     for (const p of state.processes) {
@@ -123,11 +128,17 @@
           const d1 = (c.detectCause || '').trim();
           const d2 = ci === 0 ? fmtDetectFailure(r.detectFailureAuto) : 'Giống với nội dung trên';
           const d3 = (c.detectExtra || '').trim();
-          const parts = [];
-          if (d1) parts.push('Phát hiện ra nguyên nhân:\n' + d1);
-          if (d2) parts.push('Phát hiện ra dạng hỏng hóc:\n' + d2);
-          if (d3) parts.push('Bổ sung cho đặc tính đặc thù:\n' + d3);
-          put(row, 10, parts.join('\n'));
+          const parts = [], runs = [];
+          const addSec = (label, content) => {
+            if (parts.length) runs.push({ t: '\n', b: false });
+            parts.push(label + '\n' + content);
+            runs.push({ t: label + '\n', b: true });   // nhãn in đậm
+            runs.push({ t: content, b: false });
+          };
+          if (d1) addSec('Phát hiện ra nguyên nhân:', d1);
+          if (d2) addSec('Phát hiện ra dạng hỏng hóc:', d2);
+          if (d3) addSec('Bổ sung cho đặc tính đặc thù:', d3);
+          putRich(row, 10, parts.join('\n'), runs);
           put(row, 11, c.detection, true);
           const rpn = rpnOf(r, c); if (rpn) put(row, 12, rpn, true);
           put(row, 13, c.action);
@@ -272,6 +283,14 @@
     const sAttr = (sId != null) ? ` s="${sId}"` : '';
     if (!cell || cell.v === '' || cell.v == null) return `<c r="${ref}"${sAttr}/>`;
     if (cell.num && !isNaN(+cell.v)) return `<c r="${ref}"${sAttr}><v>${+cell.v}</v></c>`;
+    // Rich text: ô gồm nhiều "run", run có b=true thì in đậm (font Arial 10 đồng bộ).
+    if (cell.rich) {
+      const runs = cell.rich.map((rn) => {
+        const rpr = '<rPr><rFont val="Arial"/><family val="2"/>' + (rn.b ? '<b/>' : '') + '<sz val="10"/></rPr>';
+        return `<r>${rpr}<t xml:space="preserve">${xmlEsc(rn.t)}</t></r>`;
+      }).join('');
+      return `<c r="${ref}"${sAttr} t="inlineStr"><is>${runs}</is></c>`;
+    }
     return `<c r="${ref}"${sAttr} t="inlineStr"><is><t xml:space="preserve">${xmlEsc(cell.v)}</t></is></c>`;
   }
   function genRow(rn, valsByCol, ids, h) {
