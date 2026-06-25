@@ -521,8 +521,8 @@
               title="Tự nhận từ nội dung: phát hiện bằng giác quan (tay/mắt/đếm…) → khi D≥7 không bắt buộc đề xuất biện pháp">🖐️ Giác quan (tự nhận)</span>
         <div class="detect-label">Phát hiện ra dạng hỏng hóc:</div>
         ${autoBox}
-        <div class="detect-label detect-extra-label" id="dxl-${c.id}"${hasSC ? '' : ' hidden'}>Bổ sung cho đặc tính đặc thù:</div>
-        <textarea class="detect-extra" id="dx-${c.id}" data-field="detectExtra" rows="2"${hasSC ? '' : ' hidden'} placeholder="Nội dung phát hiện bổ sung…">${esc(c.detectExtra)}</textarea>
+        ${firstCause ? `<div class="detect-label detect-extra-label" id="dxl-${c.id}"${hasSC ? '' : ' hidden'}>Bổ sung cho đặc tính đặc thù:</div>
+        <textarea class="detect-extra" id="dx-${c.id}" data-field="detectExtra" rows="2"${hasSC ? '' : ' hidden'} placeholder="Nội dung phát hiện bổ sung…">${esc(c.detectExtra)}</textarea>` : ''}
       </div></td>`;
   }
 

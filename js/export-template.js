@@ -129,8 +129,16 @@
           // Ô phát hiện ra: có nhãn. Nguyên nhân đầu hiện đầy đủ; các nguyên nhân
           // sau ghi "giống với nội dung trên" cho phần dạng hỏng hóc.
           const d1 = (c.detectCause || '').trim();
-          const d2 = ci === 0 ? fmtDetectFailure(r.detectFailureAuto) : 'Giống với nội dung trên';
-          const d3 = (c.detectExtra || '').trim();
+          // Phát hiện ra dạng hỏng hóc: chỉ nguyên nhân đầu mới có nội dung đầy đủ.
+          // Nội dung bổ sung SC (detectExtra) gộp vào thành 1 ý gạch đầu dòng thêm (không nhãn riêng).
+          let d2;
+          if (ci === 0) {
+            const autoLines = fmtDetectFailure(r.detectFailureAuto);
+            const extra = (c.detectExtra || '').trim();
+            d2 = extra ? (autoLines ? autoLines + '\n-' + extra : '-' + extra) : autoLines;
+          } else {
+            d2 = 'Giống với nội dung trên';
+          }
           const parts = [], runs = [];
           const addSec = (label, content) => {
             if (parts.length) runs.push({ t: '\n', b: false });
@@ -140,7 +148,6 @@
           };
           if (d1) addSec('Phát hiện ra nguyên nhân:', d1);
           if (d2) addSec('Phát hiện ra dạng hỏng hóc:', d2);
-          if (d3) addSec('Bổ sung cho đặc tính đặc thù:', d3);
           putRich(row, 10, parts.join('\n'), runs);
           put(row, 11, c.detection, true);
           const rpn = rpnOf(r, c); if (rpn) put(row, 12, rpn, true);
