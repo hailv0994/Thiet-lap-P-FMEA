@@ -245,6 +245,10 @@
     for (const [c, r1, , r2] of merges) {
       const cell = (rows[r1] || {})[c]; if (!cell) continue;
       let need;
+      // Cột A (tên công đoạn + chức năng + yêu cầu) thường rất dài;
+      // KHÔNG dùng nó để kéo cao hàng — để nội dung tự clip là chấp nhận được
+      // vì trang tiếp theo chỉ lặp tiêu đề ngắn.
+      if (+c === 1) continue;
       if (+c === 5) need = 30;
       else if (cell.num) need = LH + PAD;
       else need = cellLines(cell.v, +c, widths) * LH + PAD;
