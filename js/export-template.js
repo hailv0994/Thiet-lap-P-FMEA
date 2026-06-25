@@ -99,8 +99,11 @@
         seenReq.add(key);
         return `${reqNo[r.id]}.${r.reqText}`;
       }).filter(Boolean).join('\n');
-      const aText = `${p.no ? p.no + '.' : ''}${p.name}\n\n-Chức năng: \n${p.func || ''}\n\n-Yêu cầu: \n${reqList}`;
-      put(procStart, 1, aText);
+      const aProcTitle = `${p.no ? p.no + '.' : ''}${p.name}`;
+      const aRest = `\n\n-Chức năng: \n${p.func || ''}\n\n-Yêu cầu: \n${reqList}`;
+      const aText = aProcTitle + aRest;
+      // Số thứ tự + tên công đoạn in đậm; phần còn lại bình thường
+      putRich(procStart, 1, aText, [{ t: aProcTitle, b: true }, { t: aRest, b: false }]);
       if (totalRows > 1) merges.push([1, procStart, 1, procStart + totalRows - 1]);
 
       groups.forEach((grp) => {
