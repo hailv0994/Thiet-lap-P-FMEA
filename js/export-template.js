@@ -392,7 +392,8 @@
     xml = xml.replace(/<cols>[\s\S]*?<\/cols>/, buildColsXml(widths));
 
     // lề + scale in A4 + đánh số trang (vào dòng "Trang ページ") + ngắt trang thủ công
-    xml = xml.replace(/<pageMargins[^>]*\/>/, '<pageMargins left="0" right="0" top="0.28" bottom="0.15" header="0.1" footer="0"/>');
+    // bottom/footer đủ rộng để in dòng "Bản áp dụng số…" + "Thời gian lưu…" ở cuối mỗi trang
+    xml = xml.replace(/<pageMargins[^>]*\/>/, '<pageMargins left="0" right="0" top="0.28" bottom="0.3" header="0.1" footer="0.12"/>');
     // TỰ CO vừa 1 trang ngang: Excel tự chọn % để lấp đầy bề ngang A4, không thiếu cột
     xml = xml.replace(/<pageSetup[^>]*\/>/, '<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>');
     // fitToWidth chỉ có hiệu lực khi sheetPr có <pageSetUpPr fitToPage="1"/>
@@ -404,7 +405,13 @@
       xml = xml.replace(/<\/sheetPr>/, '<pageSetUpPr fitToPage="1"/></sheetPr>');
     }
     // Số trang in vào ĐÚNG dòng "Trang ページ：" (góc trên phải), đúng từng trang (&P/&N)
-    const headerFooter = '<headerFooter><oddHeader>&amp;R&amp;&quot;Arial&quot;&amp;10Trang ページ： &amp;P／&amp;N</oddHeader></headerFooter>';
+    // Footer (cuối mỗi trang): trái = bản áp dụng, phải = thời gian lưu (lấy từ form gốc)
+    const footL = 'Bản áp dụng số 240101 （Các BU）　適用No.240101版（各BU）';
+    const footR = 'Thời gian lưu:  20 năm sau ngày dừng sản xuất chủng loại　保管期間：機種生産打切り日後20年';
+    const oddFooter = '<oddFooter>' +
+      '&amp;L&amp;&quot;Arial&quot;&amp;8' + xmlEsc(footL) +
+      '&amp;R&amp;&quot;Arial&quot;&amp;8' + xmlEsc(footR) + '</oddFooter>';
+    const headerFooter = '<headerFooter><oddHeader>&amp;R&amp;&quot;Arial&quot;&amp;10Trang ページ： &amp;P／&amp;N</oddHeader>' + oddFooter + '</headerFooter>';
     // Template ĐÃ CÓ sẵn 1 thẻ <headerFooter/>; phải THAY THẾ (không chèn thêm),
     // nếu không sẽ trùng 2 thẻ -> Excel báo "We found a problem with content".
     if (/<headerFooter[^>]*\/>/.test(xml)) {
