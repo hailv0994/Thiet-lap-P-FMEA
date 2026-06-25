@@ -212,14 +212,14 @@
     return Math.min(0.95, (A4_W_PT - 2 * MARGIN_LR_PT) / totalPt);
   }
 
-  const LH = 13, PAD = 13; // chiều cao 1 dòng Arial 10pt; đệm = ĐÚNG 1 dòng (ít khoảng trống thừa)
+  const LH = 10, PAD = 10; // chiều cao 1 dòng in Arial 10pt @ 70% scale — compact, chấp nhận clip nhẹ
   function cellLines(text, col, widths) {
     const cpl = Math.max(4, Math.floor((widths[col] || 8) * 0.95));
     let lines = 0;
     String(text).split('\n').forEach((seg) => { lines += Math.max(1, Math.ceil(seg.length / cpl)); });
     return Math.max(1, lines);
   }
-  const clampH = (h) => Math.min(409, Math.max(15, Math.round(h * 100) / 100));
+  const clampH = (h) => Math.min(270, Math.max(15, Math.round(h * 100) / 100));
 
   function baseHeights(rows, merges, startRow, lastRow, widths) {
     const mergeTop = {};
@@ -416,9 +416,9 @@
 
     // chiều cao -> ngắt trang -> tách ô gộp & lặp nội dung -> chiều cao cuối
     // Tính PAGE_CAP động: dựa trên tổng chiều rộng cột → ước lượng scale in → số điểm data/trang
-    const printScale = estimatePrintScale(widths);
+    const PRINT_SCALE = 0.70; // scale in cố định 70% — khớp với user, tránh fitToWidth gây lệch
     const hdrH = calcHeaderH(xml, START);
-    const pageCap = Math.floor(A4_H_PT / printScale - hdrH);
+    const pageCap = Math.floor(A4_H_PT / PRINT_SCALE - hdrH);
 
     // Pass 1: ước lượng ngắt trang từ H gốc (trước khi tách ô gộp)
     let H = baseHeights(rows, merges, START, lastRow, widths);
@@ -466,7 +466,7 @@
     // bottom/footer đủ rộng để in dòng "Bản áp dụng số…" + "Thời gian lưu…" ở cuối mỗi trang
     xml = xml.replace(/<pageMargins[^>]*\/>/, `<pageMargins left="${MARGIN_LR_IN.toFixed(4)}" right="${MARGIN_LR_IN.toFixed(4)}" top="0.28" bottom="0.3" header="0.1" footer="0.12"/>`);
     // TỰ CO vừa 1 trang ngang: Excel tự chọn % để lấp đầy bề ngang A4, không thiếu cột
-    xml = xml.replace(/<pageSetup[^>]*\/>/, '<pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>');
+    xml = xml.replace(/<pageSetup[^>]*\/>/, '<pageSetup paperSize="9" scale="70" fitToHeight="0" orientation="landscape"/>');
     // fitToWidth chỉ có hiệu lực khi sheetPr có <pageSetUpPr fitToPage="1"/>
     if (/<pageSetUpPr/.test(xml)) {
       xml = xml.replace(/<pageSetUpPr([^>]*?)\s*\/>/, (m, a) => '<pageSetUpPr' + a.replace(/\s*fitToPage="\d"/, '') + ' fitToPage="1"/>');
