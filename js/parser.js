@@ -115,6 +115,79 @@
     return s.replace(/(^|[^0-9A-Za-zÀ-ỹ])[Ff](?=\s*[0-9.])/g, '$1Ø');
   }
 
+  // Fallback cho bố cục GL SQS0831: khối "Quản lý đặc tính chất lượng" xếp DỌC
+  // (cùng cột với "Quản lý điều kiện chế tạo"), tiêu đề nằm NGAY DƯỚI nhãn khối;
+  // cột giá trị tên là "Giá trị quản lý"; mỗi hạng mục có dòng tiếng Việt + dòng
+  // tiếng Anh riêng. Chỉ dùng khi cách dò theo cột-biên (parseSheet) không ra cột tên.
+  function parseStacked(ws, merges, sheetName, processName) {
+    const q = findCells(ws, 'Quản lý đặc tính')[0];
+    if (!q) return null;
+    let spanS = q.col, spanE = 1e9;
+    for (const m of merges) {
+      if (q.row >= m.s.r && q.row <= m.e.r && q.col >= m.s.c && q.col <= m.e.c) { spanS = m.s.c; spanE = m.e.c; break; }
+    }
+    const qRow = q.row;
+    let blockEnd = XLSX.utils.decode_range(ws['!ref']).e.r;
+    ['Quản lý điều kiện', 'Hạng mục cấm', 'Following rules'].forEach((n) =>
+      findCells(ws, n).forEach((c) => { if (c.row > qRow && c.row - 1 < blockEnd) blockEnd = c.row - 1; }));
+    const below = (cells) => {
+      const f = cells.filter((c) => c.row > qRow && c.col >= spanS && c.col <= spanE)
+        .sort((a, b) => a.row - b.row || a.col - b.col);
+      return f[0] || null;
+    };
+    const nameH = below(findCells(ws, 'Hạng mục quản lý'));
+    if (!nameH) return null;
+    const nameCol = nameH.col, headerRow = nameH.row;
+    const inRow = (cells) => {
+      const f = cells.filter((c) => c.col >= spanS && c.col <= spanE && Math.abs(c.row - headerRow) <= 2)
+        .sort((a, b) => Math.abs(a.row - headerRow) - Math.abs(b.row - headerRow) || a.col - b.col);
+      return f[0] ? f[0].col : -1;
+    };
+    const specCol = inRow(findCells(ws, 'Giá trị quản lý')
+      .concat(findCells(ws, 'Giá trị tiêu chuẩn')).concat(findCells(ws, 'Control value')).concat(findCells(ws, 'Spec value')));
+    const methodCol = inRow(findCells(ws, 'Phương pháp xác nhận').concat(findCells(ws, 'Check method')).concat(findCells(ws, 'Check\nMethod')));
+    const freqCol = inRow(findCells(ws, 'Tần suất xác nhận').concat(findCells(ws, 'Check frequency')).concat(findCells(ws, 'Check\nFrequency')));
+    const scCol = inRow(findCells(ws, 'Đặc tính đặc thù').concat(findCells(ws, 'S.C')));
+
+    // Hàng bắt đầu hạng mục: ô tên có chữ tiếng Việt (bỏ dòng dịch tiếng Anh riêng).
+    const starts = [];
+    for (let r = headerRow + 1; r <= blockEnd; r++) {
+      const nv = ws[XLSX.utils.encode_cell({ r, c: nameCol })];
+      const txt = nv ? norm(nv.v) : '';
+      if (txt && VN_DIACRITIC.test(txt)) starts.push(r);
+    }
+    const items = [];
+    const specEnd = methodCol > specCol ? methodCol : spanE + 1;
+    for (let i = 0; i < starts.length; i++) {
+      const r0 = starts[i];
+      const r1 = (i + 1 < starts.length ? starts[i + 1] : blockEnd + 1) - 1;
+      const name = fixDiameter(vnText(cellRC(ws, r0, nameCol, merges)));
+      if (!name) continue;
+      // spec/tol: quét vùng [specCol, methodCol); bỏ R/L, Max/Min; phân loại dung sai vs trị số.
+      const specParts = [], tolParts = [];
+      if (specCol >= 0) {
+        for (let c = specCol; c < specEnd; c++) {
+          let val = '';
+          for (let r = r0; r <= r1; r++) {
+            const a = XLSX.utils.encode_cell({ r, c });
+            if (ws[a] && norm(ws[a].v)) { val = norm(ws[a].v); break; }
+          }
+          if (!val || /^(R\/L|L\/R|Max\.?|Min\.?)$/i.test(val)) continue;
+          if (looksLikeTolerance(val)) tolParts.push(val); else specParts.push(fixDiameter(val));
+        }
+      }
+      const spec = specParts.join(' ');
+      const tol = tolParts.join('/');
+      const method = methodCol >= 0 ? vnText(cellRC(ws, r0, methodCol, merges)) : '';
+      const freq = freqCol >= 0 ? String(cellRC(ws, r0, freqCol, merges) || '').replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim() : '';
+      const sc = scCol >= 0 ? norm(cellRC(ws, r0, scCol, merges)) : '';
+      let requirement = name;
+      if (spec) requirement += ': ' + spec + (tol ? '(' + tol + ')' : '');
+      items.push({ no: items.length + 1, name, spec, tol, requirement, method, freq, sc });
+    }
+    return { sheetName, processName, items };
+  }
+
   /*
    * Trả về:
    * { sheetName, processName, items: [ {no, name, spec, tol, requirement,
@@ -152,6 +225,9 @@
     );
 
     if (nameCol < 0) {
+      // Thử bố cục GL SQS0831 (khối xếp dọc) trước khi báo lỗi.
+      const alt = parseStacked(ws, merges, sheetName, processName);
+      if (alt && alt.items.length) return alt;
       return { sheetName, processName, items: [], error: 'Không tìm thấy cột "Hạng mục quản lý" trong khối đặc tính chất lượng.' };
     }
 
