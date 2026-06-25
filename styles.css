@@ -246,7 +246,8 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
 #mProduct { width: 185px; padding-right: 22px; }
 #mDept { width: 156px; } /* Bộ phận rộng hơn 20% so với inp-md */
 #mLine { width: 165px; padding-right: 22px; }
-#projSelect { width: 270px; padding-right: 22px; }
+#projSelect { width: 130px; padding-right: 22px; } /* bằng ô Model (inp-md) */
+#projSelect:disabled { background: #f0f0f1; color: var(--muted); cursor: not-allowed; }
 .btn-light { background: #fff; color: var(--ink); border-color: #bdbdbd; }
 .btn-light:hover { background: var(--head); }
 

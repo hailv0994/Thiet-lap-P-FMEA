@@ -22,6 +22,7 @@
   const LS_HISTORY = 'pfmea_history_v1';  // lịch sử lưu theo key dự án
   const HISTORY_MAX = 5;                  // tối đa 5 bản / dự án
   let _baseKeyGuard = '';                 // key của Model base vừa ghép; cảnh báo nếu Lưu trùng
+  let _openedKey = '';                    // key của dự án đang mở trực tiếp (chỉnh sửa)
 
   // ----- Cấu hình đồng bộ đám mây (Supabase) — anon key là khóa CÔNG KHAI -----
   const SB_URL = 'https://iccrgjtkaizosocrxsql.supabase.co';
@@ -1087,7 +1088,7 @@
 
   function onClear() {
     if (state.processes.length && !confirm('Xóa toàn bộ dữ liệu P-FMEA?')) return;
-    state.processes = []; render();
+    state.processes = []; _baseKeyGuard = ''; _openedKey = ''; render();
   }
 
   // ====================== Lưu / Mở dự án (localStorage) ======================
@@ -1176,8 +1177,11 @@
     obj = migrateState(obj);
     state.meta = Object.assign({ dept: '', product: '', line: '', model: '' }, obj.meta || {});
     state.processes = obj.processes || [];
+    _baseKeyGuard = '';                 // mở snapshot mới → không còn ở trạng thái "base chưa đặt tên"
+    _openedKey = currentKey();          // ghi nhớ model đang mở để sửa
     reindexUID();
     writeMetaInputs();
+    refreshProjectUI();
     render();
   }
 
@@ -1249,22 +1253,56 @@
     writeProjects(map);
     cloudPushProject(key, map[key]);   // đẩy lên dữ liệu chung
     refreshProjectUI();
-    $('#projSelect').value = key;
-    _baseKeyGuard = ''; // đã lưu thành công → xóa guard
+    $('#projSelect').value = '';   // đã thành model riêng → không còn là "base đang chọn"
+    _baseKeyGuard = '';            // đã lưu thành công → xóa guard
+    _openedKey = key;             // từ giờ đang chỉnh sửa trực tiếp model này
     flash('Đã lưu: ' + key + (sb ? ' (đã đồng bộ chung)' : ''));
   }
 
+  // Chọn "Model base": nạp nội dung của model base ra làm KHUÔN cho model MỚI.
+  // Sau khi nạp → XÓA ô Model (buộc nhập tên mới) và đặt guard để Lưu không đè base.
   function onPickProject() {
     const key = $('#projSelect').value;
     if (!key) return;
     const map = readProjects();
     const proj = map[key];
     if (!proj) return;
-    if (state.processes.length && !confirm('Mở dự án "' + key + '"? Dữ liệu hiện tại chưa lưu sẽ bị thay thế.')) {
-      $('#projSelect').value = projectKey(state.meta); return;
+    const baseModel = (proj.meta || {}).model || key;
+    if (state.processes.length && !confirm(
+        'Lấy "' + baseModel + '" làm Model base cho một model MỚI?\n' +
+        'Dữ liệu hiện tại chưa lưu sẽ bị thay thế.')) {
+      $('#projSelect').value = '';
+      return;
     }
-    applySnapshot(proj);
-    flash('Đã mở: ' + key);
+    applySnapshot(proj);            // hiện nội dung base (applySnapshot reset guard)
+    _baseKeyGuard = key;            // ghi nhớ base để cảnh báo nếu Lưu trùng tên
+    state.meta.model = '';          // cách ly: buộc nhập tên model mới trước khi Lưu
+    $('#mModel').value = '';
+    $('#projSelect').value = key;   // giữ hiển thị base đã chọn
+    flash('Đã lấy Model base "' + baseModel + '". ⚠️ Hãy NHẬP TÊN MODEL MỚI, rồi tải CP của model mới + bấm Nạp.');
+    $('#mModel').focus();
+  }
+
+  // Chọn / gõ Model ở ô Model: nếu trùng một model ĐÃ LƯU (cùng Bộ phận/SP/Dây chuyền)
+  // → mở P-FMEA của model đó ra để CHỈNH SỬA (lưu sẽ ghi đè chính model đó).
+  function onModelChange() {
+    readMetaInputs();
+    const key = currentKey();
+    const proj = key ? readProjects()[key] : null;
+    const alreadyOpen = key && projectKey(state.meta) === key && _openedKey === key;
+    if (proj && proj.processes && proj.processes.length && !alreadyOpen) {
+      if (state.processes.length && !confirm(
+          'Mở P-FMEA của model "' + state.meta.model + '" để chỉnh sửa?\n' +
+          'Dữ liệu hiện tại chưa lưu sẽ bị thay thế.')) {
+        return; // giữ tên model vừa gõ, không nạp
+      }
+      applySnapshot(proj);
+      _openedKey = key;
+      $('#projSelect').value = '';
+      flash('Đã mở model: ' + state.meta.model + ' (chỉnh sửa trực tiếp).');
+      return;
+    }
+    scheduleAutosave();
   }
 
   function onDeleteProject() {
@@ -1368,14 +1406,30 @@
     e.target.value = '';
   }
 
+  // Dropdown "Model base": CHỈ liệt kê model thuộc đúng Bộ phận+Sản phẩm+Dây chuyền
+  // đang chọn; option hiển thị CHỈ tên model (value vẫn là key đầy đủ để tra cứu).
+  // Khóa lại khi chưa chọn đủ Bộ phận/Sản phẩm/Dây chuyền.
   function refreshProjectUI() {
     const map = readProjects();
-    const keys = Object.keys(map).sort();
     const sel = $('#projSelect');
     const cur = sel.value;
-    sel.innerHTML = '<option value="">— Chọn —</option>' +
-      keys.map((k) => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
-    if (keys.includes(cur)) sel.value = cur;
+    const ready = !!(state.meta.dept && state.meta.product && state.meta.line);
+    const entries = Object.keys(map)
+      .map((k) => ({ k, meta: map[k].meta || {} }))
+      .filter((e) => ready
+        && normKey(e.meta.dept) === normKey(state.meta.dept)
+        && normKey(e.meta.product) === normKey(state.meta.product)
+        && normKey(e.meta.line) === normKey(state.meta.line))
+      .sort((a, b) => String(a.meta.model || a.k).localeCompare(String(b.meta.model || b.k)));
+    sel.disabled = !ready;
+    sel.title = ready
+      ? 'Chọn model base để lập P-FMEA cho model mới'
+      : 'Hãy chọn Bộ phận, Sản phẩm, Dây chuyền trước';
+    sel.innerHTML = (ready
+        ? '<option value="">— Chọn model base —</option>'
+        : '<option value="">— Chọn Bộ phận/SP/Dây chuyền trước —</option>')
+      + entries.map((e) => `<option value="${esc(e.k)}">${esc(e.meta.model || e.k)}</option>`).join('');
+    if (entries.some((e) => e.k === cur)) sel.value = cur;
     fillModelDatalist();
   }
 
@@ -1404,12 +1458,20 @@
     const lines = (TREE()[dept] && TREE()[dept][product]) ? TREE()[dept][product] : [];
     fillInputList('#mLine', '#dlLine', lines, keep);
   }
-  // Model: gõ tự do, gợi ý từ dự án đã lưu
+  // Model: gõ tự do + mũi tên xổ chọn model đã lưu.
+  // CHỈ gợi ý các model thuộc ĐÚNG Bộ phận + Sản phẩm + Dây chuyền đang chọn.
   function fillModelDatalist() {
     const map = readProjects();
     const models = new Set();
-    Object.keys(map).forEach((k) => { const m = (map[k].meta || {}).model; if (m) models.add(m); });
-    $('#dlModel').innerHTML = [...models].map((v) => `<option value="${esc(v)}">`).join('');
+    Object.keys(map).forEach((k) => {
+      const m = map[k].meta || {};
+      if (!m.model) return;
+      if (normKey(m.dept) !== normKey(state.meta.dept)) return;
+      if (normKey(m.product) !== normKey(state.meta.product)) return;
+      if (normKey(m.line) !== normKey(state.meta.line)) return;
+      models.add(m.model);
+    });
+    $('#dlModel').innerHTML = [...models].sort().map((v) => `<option value="${esc(v)}">`).join('');
   }
 
   function readMetaInputs() {
@@ -2021,10 +2083,11 @@
       if (!state.processes.length) {
         const proj = readProjects()[currentKey()];
         if (proj && proj.processes && proj.processes.length) {
-          state.processes = migrateState({ processes: proj.processes }).processes; reindexUID(); render();
-          $('#projSelect').value = currentKey();
+          state.processes = migrateState({ processes: proj.processes }).processes; reindexUID();
+          _openedKey = currentKey(); render();
         }
       }
+      refreshProjectUI();   // cập nhật danh sách Model base + datalist theo ngữ cảnh mới
       scheduleAutosave();
     }
     // Xác nhận chuyển ngữ cảnh (nếu đang có dữ liệu); trả về false nếu người dùng hủy.
@@ -2062,8 +2125,8 @@
       if (state.processes.length) { state.processes = []; render(); }
       onMetaChange();
     });
-    // Model: gõ tự do; khi nhập xong (change) thử tự mở dự án đã lưu nếu bảng trống.
-    $('#mModel').addEventListener('change', onMetaChange);
+    // Model: gõ tự do + xổ chọn. Chọn model đã lưu (cùng ngữ cảnh) → mở ra chỉnh sửa.
+    $('#mModel').addEventListener('change', onModelChange);
     $('#mModel').addEventListener('input', () => { readMetaInputs(); scheduleAutosave(); });
 
     const tbody = $('#fmea tbody');
