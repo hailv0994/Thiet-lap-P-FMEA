@@ -1153,13 +1153,18 @@
     sel.value = has ? keep : '';
   }
   function fillDept(keep) { fillSelect('#mDept', Object.keys(TREE()), keep, '— Chọn bộ phận —'); }
+  // Sản phẩm / Dây chuyền: ô nhập có gợi ý — chọn từ danh sách hoặc tự nhập tự do.
+  function fillInputList(inputId, listId, items, keep) {
+    $(listId).innerHTML = items.map((v) => `<option value="${esc(v)}"></option>`).join('');
+    $(inputId).value = keep || '';
+  }
   function fillProduct(dept, keep) {
     const prods = TREE()[dept] ? Object.keys(TREE()[dept]) : [];
-    fillSelect('#mProduct', prods, keep, '— Chọn sản phẩm —');
+    fillInputList('#mProduct', '#dlProduct', prods, keep);
   }
   function fillLine(dept, product, keep) {
     const lines = (TREE()[dept] && TREE()[dept][product]) ? TREE()[dept][product] : [];
-    fillSelect('#mLine', lines, keep, lines.length ? '— Chọn dây chuyền —' : '— (không có) —');
+    fillInputList('#mLine', '#dlLine', lines, keep);
   }
   // Model: gõ tự do, gợi ý từ dự án đã lưu
   function fillModelDatalist() {
