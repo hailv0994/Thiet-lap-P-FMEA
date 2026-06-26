@@ -910,7 +910,7 @@
       id: uid('r'), splitId: nr.splitId, reqText: nr.reqText, failureMode: nr.failureMode,
       effectAnalysis: a.effectAnalysis || '', effectStdText: a.effectStdText || '',
       effectScope: a.effectScope || '', severity: a.severity || '',
-      classification: a.classification || nr.classification || '',
+      classification: nr.classification || '',   // SC luôn lấy theo CP mới, không kế thừa base
       detectFailureAuto: a.detectFailureAuto || nr.detectFailureAuto,
       detectOwn: a.detectOwn || nr.detectOwn || nr.detectFailureAuto,
       causes: (a.causes && a.causes.length ? a.causes : [newCause()])
@@ -1001,19 +1001,23 @@
           // Không thay đổi → giữ nguyên toàn bộ req cũ tương ứng, xóa cờ xanh cũ (nếu có)
           const matchOld = oldGroup.find((or) => fmNumless(or.failureMode) === fmNumless(nr.failureMode))
             || (oldGroup.length === 1 ? oldGroup[0] : null);
-          if (matchOld) { delete matchOld._cp; newReqs.push(matchOld); }
-          else newReqs.push(nr);
+          if (matchOld) {
+            delete matchOld._cp;
+            matchOld.classification = nr.classification || ''; // SC luôn theo CP mới
+            newReqs.push(matchOld);
+          } else newReqs.push(nr);
           return;
         }
         // Có thay đổi: tìm req cũ cùng chiều (lớn hơn/nhỏ hơn/không đạt)
         const matchOld = oldGroup.find((or) => fmNumless(or.failureMode) === fmNumless(nr.failureMode))
           || (oldGroup.length === 1 ? oldGroup[0] : null);
         if (matchOld) {
-          // Cập nhật reqText + failureMode theo CP mới, giữ phân tích
+          // Cập nhật reqText + failureMode + SC theo CP mới, giữ phân tích
           const fmChanged = normKey(matchOld.failureMode) !== normKey(nr.failureMode);
           const updated = Object.assign({}, matchOld, {
             reqText: nr.reqText,
             failureMode: nr.failureMode,
+            classification: nr.classification || '', // SC luôn theo CP mới
           });
           if (!detectSame) {
             updated.detectFailureAuto = nr.detectFailureAuto;
@@ -1886,7 +1890,7 @@
     r.effectStdText = a.effectStdText || '';
     r.effectScope = a.effectScope || '';
     r.severity = a.severity || '';
-    if (a.classification) r.classification = a.classification;
+    // Không copy classification từ base — SC phải theo CP, không theo phân tích cũ
     if (a.detectFailureAuto) r.detectFailureAuto = a.detectFailureAuto;
     if (a.detectOwn) r.detectOwn = a.detectOwn;
     r.causes = (a.causes && a.causes.length ? a.causes : r.causes)
