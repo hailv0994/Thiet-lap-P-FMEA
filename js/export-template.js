@@ -280,6 +280,33 @@
     segments.push([pageStart, lastRow]);
     return { segments, breaks };
   }
+  // GIÃN ĐỀU chiều cao các hàng trong từng trang để LẤP KÍN tới đáy (chỉ chừa viền mỏng).
+  // Phân bổ phần thiếu theo tỉ lệ chiều cao gốc -> hàng nội dung nhiều giãn nhiều,
+  // hàng ít giãn ít, nhìn cân đối. Trần 1 hàng = 409pt (giới hạn cứng của Excel).
+  // maxFactor chặn trang gần trống (vd 1 hàng) khỏi bị thổi thành ô khổng lồ.
+  function fillPages(H, segments, pageCap, maxFactor) {
+    maxFactor = maxFactor || 2.2;
+    const TARGET = pageCap * 0.99; // chừa ~1% an toàn, tránh tràn -> trang trắng dư
+    for (const [s, e] of segments) {
+      let used = 0; for (let r = s; r <= e; r++) used += H[r] || 15;
+      if (used <= 0 || used >= TARGET) continue;
+      let factor = Math.min(maxFactor, TARGET / used);
+      // Lặp vài vòng: hàng chạm trần 409 thì cố định, chia phần thiếu cho hàng còn lại.
+      for (let pass = 0; pass < 4; pass++) {
+        let fixed = 0, flex = 0;
+        for (let r = s; r <= e; r++) {
+          const h = (H[r] || 15) * factor;
+          if (h >= 409) fixed += 409; else flex += (H[r] || 15);
+        }
+        const remain = TARGET - fixed;
+        if (flex <= 0 || remain <= 0) break;
+        const f2 = Math.min(maxFactor, remain / flex);
+        if (Math.abs(f2 - factor) < 0.001) break;
+        factor = f2;
+      }
+      for (let r = s; r <= e; r++) H[r] = Math.min(409, Math.round((H[r] || 15) * factor * 100) / 100);
+    }
+  }
   // Tách ô gộp dọc theo các trang; lặp giá trị neo ở đầu mỗi trang.
   function splitMergesByPage(merges, rows, segments) {
     const out = [];
@@ -439,6 +466,8 @@
     const finalMerges = splitMergesByPage(merges, rows, segments);
     H = baseHeights(rows, finalMerges, START, lastRow, widths);
     applyMergeDeficit(H, finalMerges, rows, widths);
+    // GIÃN ĐỀU để lấp kín mỗi trang (chỉ chừa viền mỏng) — giống cách user chỉnh tay.
+    fillPages(H, segments, pageCap);
 
     // Xóa tất cả hàng template >= START, sau đó chèn các hàng dữ liệu đã tính
     xml = xml.replace(/<row r="(\d+)"(?:[^>]*\/>|[^>]*>[\s\S]*?<\/row>)/g,
