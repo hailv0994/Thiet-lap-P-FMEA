@@ -1483,8 +1483,8 @@
       ? 'Chọn model base để lập P-FMEA cho model mới'
       : 'Hãy chọn Bộ phận, Sản phẩm, Dây chuyền trước';
     sel.innerHTML = (ready
-        ? '<option value="">— Chọn model base —</option>'
-        : '<option value="">— Chọn Bộ phận/SP/Dây chuyền trước —</option>')
+        ? '<option value="">Chọn model base</option>'
+        : '<option value="">Chọn Bộ phận/SP/Dây chuyền trước</option>')
       + entries.map((e) => `<option value="${esc(e.k)}">${esc(e.meta.model || e.k)}</option>`).join('');
     if (entries.some((e) => e.k === cur)) sel.value = cur;
     fillModelDatalist();

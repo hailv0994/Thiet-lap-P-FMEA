@@ -76,6 +76,7 @@
   function computeData(state, startRow) {
     const rows = {};
     const merges = []; // [c1,r1,c2,r2]
+    const colAMeta = {}; // procStart → {aProcTitle, aFunc, reqSegs:[{start,end,texts,splitIds}]}
     const put = (r, c, v, num) => {
       if (v === '' || v == null) return;
       (rows[r] || (rows[r] = {}))[c] = { v, num: !!num };
@@ -106,10 +107,23 @@
       putRich(procStart, 1, aText, [{ t: aProcTitle, b: true }, { t: aRest, b: false }]);
       if (totalRows > 1) merges.push([1, procStart, 1, procStart + totalRows - 1]);
 
+      // Thu thập per-group req texts để dùng trong splitMergesByPage (col A per page)
+      const reqSegs = [];
+
       groups.forEach((grp) => {
         const r = grp[0].r;            // đại diện nhóm cho các cột C–S
         const reqStart = row;
         const rs = r.causes.length || 1;
+        // Req texts cho nhóm này (dedup by splitId nội bộ nhóm) — pairs giữ liên kết sid↔text
+        const grpSeen = new Set();
+        const pairs = []; // [{sid, text}]
+        grp.forEach(({ r: m }) => {
+          const key = m.splitId || m.id;
+          if (grpSeen.has(key)) return;
+          grpSeen.add(key);
+          pairs.push({ sid: key, text: `${reqNo[m.id]}.${m.reqText}` });
+        });
+        reqSegs.push({ start: reqStart, end: reqStart + rs - 1, pairs });
         // Cột B: liệt kê mọi dạng hỏng hóc trong nhóm, đánh số theo yêu cầu ở cột A
         const fmText = grp.map(({ r: m }) => `${reqNo[m.id]}.${m.failureMode || ''}`).join('\n');
         put(reqStart, 2, fmText);
@@ -160,8 +174,9 @@
           row++;
         });
       });
+      colAMeta[procStart] = { aProcTitle, aFunc: p.func || '', reqSegs };
     }
-    return { rows, merges, endRow: row - 1 };
+    return { rows, merges, endRow: row - 1, colAMeta };
   }
 
   // ---- Độ rộng cột tự cân đối theo nội dung (giữ tổng = ORIG_TOTAL) ----
@@ -308,7 +323,8 @@
     }
   }
   // Tách ô gộp dọc theo các trang; lặp giá trị neo ở đầu mỗi trang.
-  function splitMergesByPage(merges, rows, segments) {
+  // colAMeta (tuỳ chọn): dùng để build nội dung cột A đúng yêu cầu per-page.
+  function splitMergesByPage(merges, rows, segments, colAMeta) {
     const out = [];
     for (const m of merges) {
       const [c, r1, c2, r2] = m;
@@ -319,10 +335,26 @@
         if (top > r1) { // lặp lại nội dung neo ở đầu trang
           const src = (rows[r1] || {})[c];
           if (src) {
-            // Cột A (Quy trình): các TRANG SAU chỉ lặp SỐ + TÊN công đoạn
-            // (run đậm đầu tiên), KHÔNG lặp đầy đủ chức năng + yêu cầu.
-            // Tránh việc nội dung cột A dài ép cả hàng cao quá mức -> ô trống.
-            if (+c === 1 && src.rich && src.rich.length) {
+            if (+c === 1 && colAMeta && colAMeta[r1]) {
+              // Cột A: chỉ hiện yêu cầu tương ứng với dạng hỏng trên trang này.
+              const meta = colAMeta[r1];
+              const visSegs = meta.reqSegs.filter((seg) => seg.start <= e && seg.end >= top);
+              const pageSeen = new Set();
+              const pageReqList = [];
+              visSegs.forEach((seg) => {
+                seg.pairs.forEach(({ sid, text }) => {
+                  if (!pageSeen.has(sid)) { pageSeen.add(sid); pageReqList.push(text); }
+                });
+              });
+              const aRest = `\n\n-Chức năng: \n${meta.aFunc}\n\n-Yêu cầu: \n${pageReqList.join('\n')}`;
+              const aText = meta.aProcTitle + aRest;
+              (rows[top] || (rows[top] = {}))[c] = {
+                v: aText,
+                rich: [{ t: meta.aProcTitle, b: true }, { t: aRest, b: false }],
+                num: false
+              };
+            } else if (+c === 1 && src.rich && src.rich.length) {
+              // Fallback: chỉ lặp tên công đoạn (đậm)
               const title = src.rich[0].t;
               (rows[top] || (rows[top] = {}))[c] = { v: title, rich: [{ t: title, b: true }], num: false };
             } else {
@@ -437,7 +469,7 @@
     const ids = { idText: st.idText, idNum: st.idNum, idSC: st.idSC };
 
     const START = 10;
-    const { rows, merges, endRow } = computeData(state, START);
+    const { rows, merges, endRow, colAMeta } = computeData(state, START);
     const lastRow = Math.max(endRow, START);
     const widths = computeWidths(rows);
 
@@ -457,13 +489,13 @@
     // Dùng bản sao rows để giữ nguyên dữ liệu gốc cho pass cuối.
     const rowsTmp = {};
     for (const r in rows) { rowsTmp[r] = {}; for (const c in rows[r]) rowsTmp[r][c] = rows[r][c]; }
-    const splitM0 = splitMergesByPage(merges, rowsTmp, seg0);
+    const splitM0 = splitMergesByPage(merges, rowsTmp, seg0, colAMeta);
     H = baseHeights(rowsTmp, splitM0, START, lastRow, widths);
     applyMergeDeficit(H, splitM0, rowsTmp, widths);
     const { segments, breaks } = paginate(H, START, lastRow, pageCap);
 
     // Pass cuối: tách ô gộp theo ngắt trang chính xác, tính H cho XML
-    const finalMerges = splitMergesByPage(merges, rows, segments);
+    const finalMerges = splitMergesByPage(merges, rows, segments, colAMeta);
     H = baseHeights(rows, finalMerges, START, lastRow, widths);
     applyMergeDeficit(H, finalMerges, rows, widths);
     // GIÃN ĐỀU để lấp kín mỗi trang (chỉ chừa viền mỏng) — giống cách user chỉnh tay.

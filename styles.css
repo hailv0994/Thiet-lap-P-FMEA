@@ -243,9 +243,18 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
 .meta-bar label { white-space: nowrap; }
 .inp-md { width: 130px; }
 /* nới rộng + chừa chỗ cho mũi tên ▼ để tên dài không che ký hiệu (đã thu hẹp ~20%) */
-#mProduct { width: 148px; padding-right: 22px; }
+#mProduct { width: 148px; }
 #mDept { width: 125px; }
-#mLine { width: 132px; padding-right: 22px; }
+#mLine { width: 132px; }
+/* wrapper cho input có datalist — luôn hiện mũi tên ▼ sát phải */
+.sel-wrap { position: relative; display: inline-block; }
+.sel-wrap input[type="text"] { padding-right: 22px; width: 100%; }
+.sel-wrap::after {
+  content: '▾'; position: absolute; right: 6px; top: 50%;
+  transform: translateY(-50%); pointer-events: none;
+  font-size: 11px; color: var(--ink-soft, #888); line-height: 1;
+}
+input[list]::-webkit-calendar-picker-indicator { display: none !important; }
 #projSelect { width: 130px; padding-right: 22px; } /* bằng ô Model (inp-md) */
 #projSelect:disabled { background: #f0f0f1; color: var(--muted); cursor: not-allowed; }
 .btn-light { background: #fff; color: var(--ink); border-color: #bdbdbd; }
