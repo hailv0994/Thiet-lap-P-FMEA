@@ -174,6 +174,8 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
   padding: 4px; font-size: 11.5px; white-space: pre-wrap; color: var(--ink-soft);
 }
 .detect-auto.detect-same { font-style: italic; color: var(--muted); }
+/* Đánh dấu xanh dương các ô vừa được cập nhật từ CP (hết xanh sau khi Lưu) */
+.cp-hl, textarea.cp-hl, .cell-edit.cp-hl, .detect-auto.cp-hl { color: #1565c0 !important; font-weight: 600; }
 .visual-auto {
   display: inline-block; margin: 3px 0 4px; padding: 1px 7px;
   font-size: 10px; color: #1d4ed8; background: #eff6ff;
@@ -246,13 +248,19 @@ input.num-inp:focus { outline: none; background: #fff7d6; }
 #mProduct { width: 148px; }
 #mDept { width: 125px; }
 #mLine { width: 132px; }
-/* wrapper cho input có datalist — luôn hiện mũi tên ▼ sát phải */
+/* wrapper cho input có datalist */
 .sel-wrap { position: relative; display: inline-block; }
-.sel-wrap input[type="text"] { padding-right: 22px; width: 100%; }
-.sel-wrap::after {
-  content: '▾'; position: absolute; right: 6px; top: 50%;
-  transform: translateY(-50%); pointer-events: none;
-  font-size: 11px; color: var(--ink-soft, #888); line-height: 1;
+.sel-wrap input[type="text"] { width: 100%; }
+/* Mũi tên xổ xuống ĐỒNG NHẤT cho cả 4 ô: Bộ phận (select) + Sản phẩm/Dây chuyền/Model
+   (input+datalist). Dùng cùng 1 SVG caret + appearance:none để trông giống hệt nhau
+   trên mọi trình duyệt. */
+#mDept,
+.sel-wrap input[type="text"] {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1.5L5 5.5L9 1.5' fill='none' stroke='%23666' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  padding-right: 22px;
 }
 input[list]::-webkit-calendar-picker-indicator { display: none !important; }
 #projSelect { width: 130px; padding-right: 22px; } /* bằng ô Model (inp-md) */

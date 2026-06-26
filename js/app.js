@@ -436,10 +436,11 @@
       const key = r.splitId || r.id;
       if (seen.has(key)) return '';   // yêu cầu đã tách dạng hỏng → chỉ hiện 1 dòng
       seen.add(key);
+      const hlReq = (r._cp && r._cp.reqText) ? ' cp-hl' : '';
       return `
       <div class="req-line" data-proc="${p.id}" data-req="${r.id}">
         <span class="idx">${reqNo[r.id]}.</span>
-        <textarea data-field="reqText" rows="2" placeholder="Yêu cầu (điều kiện chất lượng)">${esc(r.reqText)}</textarea>
+        <textarea data-field="reqText" class="ta-req${hlReq}" rows="2" placeholder="Yêu cầu (điều kiện chất lượng)">${esc(r.reqText)}</textarea>
         <button class="mini-btn danger" data-action="del-req" title="Xóa yêu cầu này">✕</button>
       </div>`;
     }).join('');
@@ -473,7 +474,7 @@
     return grp.map(({ r }) => `
       <div class="fm-line" data-proc="${p.id}" data-req="${r.id}">
         <span class="fm-idx">${reqNo[r.id]}.</span>
-        <div class="cell-edit" contenteditable="true" data-field="failureMode">${esc(r.failureMode)}</div>
+        <div class="cell-edit${(r._cp && r._cp.failureMode) ? ' cp-hl' : ''}" contenteditable="true" data-field="failureMode">${esc(r.failureMode)}</div>
         <span class="fm-tools">
           <button class="mini-btn" data-action="merge-open" title="Gộp các dạng hỏng hóc giống nhau">🔗</button>
           ${grouped ? '<button class="mini-btn danger" data-action="unmerge" title="Tách khỏi nhóm gộp">🔓</button>' : ''}
@@ -514,7 +515,7 @@
     // ② Phát hiện ra dạng hỏng hóc: nhãn riêng dòng, nội dung mỗi ý 1 dòng prefix "-".
     //    Nguyên nhân đầu hiện đầy đủ; các nguyên nhân sau ghi "Giống với nội dung trên".
     const autoBox = firstCause
-      ? `<div class="detect-auto">${esc(fmtDetectFailure(r.detectFailureAuto))}</div>`
+      ? `<div class="detect-auto${(r._cp && r._cp.detect) ? ' cp-hl' : ''}">${esc(fmtDetectFailure(r.detectFailureAuto))}</div>`
       : '<div class="detect-auto detect-same">Giống với nội dung trên</div>';
     return `<td data-proc="${p.id}" data-req="${r.id}" data-cause="${c.id}">
       <div class="detect-cell">
@@ -927,8 +928,9 @@
     const result = newProcs.map((np) => {
       const oldProc = state.processes.find((op) => normKey(op.name) === normKey(np.name));
       if (!oldProc) {
-        // Công đoạn hoàn toàn mới
+        // Công đoạn hoàn toàn mới → đánh dấu xanh toàn bộ hạng mục
         nAdded += np.reqs.length;
+        np.reqs.forEach((r) => { r._cp = { reqText: 1, failureMode: 1, detect: 1, isNew: 1 }; });
         return np;
       }
 
@@ -947,7 +949,8 @@
         usedNameKeys.add(nk);
         const oldGroup = oldByName[nk];
         if (!oldGroup) {
-          // Hạng mục mới hoàn toàn
+          // Hạng mục mới hoàn toàn → đánh dấu xanh dòng mới
+          nr._cp = { reqText: 1, failureMode: 1, detect: 1, isNew: 1 };
           newReqs.push(nr);
           nAdded++;
           return;
@@ -957,10 +960,10 @@
         const reqSame = normKey(nr.reqText) === normKey(oldRep.reqText);
         const detectSame = normKey(nr.detectFailureAuto) === normKey(oldRep.detectFailureAuto);
         if (reqSame && detectSame) {
-          // Không thay đổi → giữ nguyên toàn bộ req cũ tương ứng
+          // Không thay đổi → giữ nguyên toàn bộ req cũ tương ứng, xóa cờ xanh cũ (nếu có)
           const matchOld = oldGroup.find((or) => fmNumless(or.failureMode) === fmNumless(nr.failureMode))
             || (oldGroup.length === 1 ? oldGroup[0] : null);
-          if (matchOld) newReqs.push(matchOld);
+          if (matchOld) { delete matchOld._cp; newReqs.push(matchOld); }
           else newReqs.push(nr);
           return;
         }
@@ -969,6 +972,7 @@
           || (oldGroup.length === 1 ? oldGroup[0] : null);
         if (matchOld) {
           // Cập nhật reqText + failureMode theo CP mới, giữ phân tích
+          const fmChanged = normKey(matchOld.failureMode) !== normKey(nr.failureMode);
           const updated = Object.assign({}, matchOld, {
             reqText: nr.reqText,
             failureMode: nr.failureMode,
@@ -977,10 +981,13 @@
             updated.detectFailureAuto = nr.detectFailureAuto;
             updated.detectOwn = nr.detectOwn || nr.detectFailureAuto;
           }
+          // Đánh dấu xanh ĐÚNG ô đã thay đổi
+          updated._cp = { reqText: !reqSame, failureMode: fmChanged, detect: !detectSame };
           newReqs.push(updated);
           nUpdated++;
         } else {
-          // Chiều dạng hỏng mới (VD: trước 1 dạng hỏng, nay tách 2)
+          // Chiều dạng hỏng mới (VD: trước 1 dạng hỏng, nay tách 2) → dòng mới
+          nr._cp = { reqText: 1, failureMode: 1, detect: 1, isNew: 1 };
           newReqs.push(nr);
           nAdded++;
         }
@@ -1236,6 +1243,10 @@
       if (!ok) { $('#mModel').focus(); return; }
     }
 
+    // Lưu xong = đã rà soát/chấp nhận thay đổi → bỏ đánh dấu xanh (chữ trở lại đen)
+    let hadHl = false;
+    state.processes.forEach((p) => p.reqs.forEach((r) => { if (r._cp) { delete r._cp; hadHl = true; } }));
+
     const map = readProjects();
     // Trước khi ghi đè: lưu phiên bản cũ vào lịch sử (nếu dự án đã tồn tại)
     if (map[key]) pushHistory(key, map[key]);
@@ -1247,6 +1258,7 @@
     $('#projSelect').value = '';   // đã thành model riêng → không còn là "base đang chọn"
     _baseKeyGuard = '';            // đã lưu thành công → xóa guard
     _openedKey = key;             // từ giờ đang chỉnh sửa trực tiếp model này
+    if (hadHl) render();          // vẽ lại để xóa màu xanh đánh dấu cập nhật
     flash('Đã lưu: ' + key + (sb ? ' (đã đồng bộ chung)' : ''));
   }
 
@@ -1303,6 +1315,64 @@
     writeProjects(map);
     refreshProjectUI();
     flash('Đã xóa: ' + key);
+  }
+
+  // ===================== Chuyển model sang dây chuyền khác =====================
+  // Lưu nội dung P-FMEA của model đang mở sang dây chuyền MỚI, xóa ở dây chuyền CŨ.
+  function openXferModal() {
+    readMetaInputs();
+    if (!state.meta.model) { alert('Hãy mở model cần chuyển trước (chọn/gõ tên Model đã lưu).'); return; }
+    if (!state.processes.length) { alert('Chưa có dữ liệu P-FMEA để chuyển.'); return; }
+    const oldKey = projectKey(state.meta);
+    if (!readProjects()[oldKey]) {
+      alert('Model "' + state.meta.model + '" chưa được lưu ở dây chuyền hiện tại.\nHãy bấm Lưu trước khi chuyển dây chuyền.');
+      return;
+    }
+    $('#xferInfo').innerHTML = 'Model <b>' + esc(state.meta.model) + '</b> — đang ở dây chuyền <b>' + esc(state.meta.line || '(trống)') + '</b>';
+    // Gợi ý dây chuyền: từ cây Material + các dây chuyền đã có model (cùng bộ phận/sản phẩm)
+    const set = new Set();
+    const tl = (TREE()[state.meta.dept] && TREE()[state.meta.dept][state.meta.product]) || [];
+    tl.forEach((v) => set.add(v));
+    const map = readProjects();
+    Object.keys(map).forEach((k) => {
+      const m = map[k].meta || {};
+      if (normKey(m.dept) === normKey(state.meta.dept) && normKey(m.product) === normKey(state.meta.product) && m.line) set.add(m.line);
+    });
+    set.delete(state.meta.line);
+    $('#dlXferLine').innerHTML = [...set].sort().map((v) => `<option value="${esc(v)}"></option>`).join('');
+    $('#xferLine').value = '';
+    $('#xferModal').hidden = false;
+    setTimeout(() => $('#xferLine').focus(), 0);
+  }
+  function closeXferModal() { $('#xferModal').hidden = true; }
+  function doXferLine() {
+    readMetaInputs();
+    const newLine = $('#xferLine').value.trim();
+    if (!newLine) { alert('Hãy chọn hoặc nhập dây chuyền đích.'); $('#xferLine').focus(); return; }
+    if (normKey(newLine) === normKey(state.meta.line)) { alert('Dây chuyền đích trùng dây chuyền hiện tại.'); return; }
+    const oldKey = projectKey(state.meta);
+    const map = readProjects();
+    const proj = map[oldKey];
+    if (!proj) { alert('Không tìm thấy model đã lưu để chuyển.'); return; }
+    const newMeta = Object.assign({}, state.meta, { line: newLine });
+    const newKey = projectKey(newMeta);
+    if (map[newKey]) {
+      if (!confirm('Dây chuyền "' + newLine + '" ĐÃ CÓ model "' + state.meta.model + '".\nGhi đè model đó bằng nội dung hiện tại?')) return;
+      pushHistory(newKey, map[newKey]);
+    }
+    // Lưu ở dây chuyền mới (dùng nội dung hiện tại), xóa ở dây chuyền cũ
+    map[newKey] = { meta: newMeta, processes: state.processes, savedAt: new Date().toISOString() };
+    delete map[oldKey];
+    writeProjects(map);
+    cloudPushProject(newKey, map[newKey]);
+    cloudDeleteProject(oldKey);
+    // Cập nhật ngữ cảnh hiện tại sang dây chuyền mới
+    state.meta.line = newLine;
+    _openedKey = newKey;
+    writeMetaInputs();
+    refreshProjectUI();
+    closeXferModal();
+    flash('Đã chuyển model "' + state.meta.model + '" sang dây chuyền: ' + newLine + (sb ? ' (đã đồng bộ chung)' : ''));
   }
 
   // ===================== Thư viện model đã lưu =====================
@@ -2091,6 +2161,11 @@
         .then(() => {}, () => {});
     } catch (e) { /* noop */ }
   }
+  function cloudDeleteProject(key) {
+    if (!sb || !key) return;
+    try { sb.from('projects').delete().eq('key', key).then(() => {}, () => {}); }
+    catch (e) { /* noop */ }
+  }
   function cloudPushContext(dept, data) {
     if (!sb || !dept) return;
     try { sb.from('contexts').upsert({ dept, data, updated_at: new Date().toISOString() }).then(() => {}, () => {}); }
@@ -2125,6 +2200,12 @@
     $('#histModalClose').addEventListener('click', closeHistoryModal);
     $('#histModalCancel').addEventListener('click', closeHistoryModal);
     $('#histModal').addEventListener('click', (e) => { if (e.target.id === 'histModal') closeHistoryModal(); });
+    $('#btnXferLine').addEventListener('click', openXferModal);
+    $('#xferModalClose').addEventListener('click', closeXferModal);
+    $('#xferCancel').addEventListener('click', closeXferModal);
+    $('#xferConfirm').addEventListener('click', doXferLine);
+    $('#xferModal').addEventListener('click', (e) => { if (e.target.id === 'xferModal') closeXferModal(); });
+    $('#xferLine').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doXferLine(); } });
     $('#btnLibrary').addEventListener('click', openLibraryModal);
     $('#libModalClose').addEventListener('click', closeLibraryModal);
     $('#libModalCancel').addEventListener('click', closeLibraryModal);
