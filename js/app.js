@@ -90,6 +90,17 @@
   ];
   function negateSpecText(spec) {
     const s = norm(spec);
+    // 1) Câu YÊU CẦU mang ý phủ định ("... không bị vỡ", "... không được X",
+    //    "... không có X") → dạng hỏng là BỎ chữ "không" (điều xấu xảy ra).
+    //    VD "Mối hàn không bị vỡ ..." → "Mối hàn bị vỡ ..."
+    const mKhong = /(^|\s)không(?:\s+được)?(\s+bị|\s+có)?\s+/i.exec(s);
+    if (mKhong) {
+      const keep = (mKhong[2] || '').trim(); // giữ lại "bị"/"có" nếu có (bỏ "không"/"được")
+      const pre = mKhong[1];
+      const rest = s.slice(mKhong.index + mKhong[0].length);
+      return (s.slice(0, mKhong.index) + pre + (keep ? keep + ' ' : '') + rest).replace(/\s+/g, ' ').trim();
+    }
+    // 2) Có cặp từ trái nghĩa trong từ điển → thay bằng từ phủ định.
     for (const [word, neg] of _NEGATE_PAIRS) {
       const idx = s.toLowerCase().indexOf(word.toLowerCase());
       if (idx < 0) continue;
@@ -97,6 +108,7 @@
       const after = idx + word.length === s.length || s[idx + word.length] === ' ';
       if (before && after) return s.slice(0, idx) + neg + s.slice(idx + word.length);
     }
+    // 3) Fallback: thêm "không đạt".
     return s + ' không đạt';
   }
 

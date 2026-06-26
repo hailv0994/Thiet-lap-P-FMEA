@@ -180,15 +180,9 @@
       const tol = tolParts.join('/');
       const method = methodCol >= 0 ? vnText(cellRC(ws, r0, methodCol, merges)) : '';
       const freq = freqCol >= 0 ? String(cellRC(ws, r0, freqCol, merges) || '').replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim() : '';
-      // SC: quét từng ô trong phạm vi hàng của hạng mục, KHÔNG theo merge
-      // (tránh kế thừa SC từ hạng mục phía trên khi ô hiện tại nằm trong vùng merge liên kề).
-      let sc = '';
-      if (scCol >= 0) {
-        for (let r = r0; r <= r1; r++) {
-          const v = cellRC(ws, r, scCol, []);
-          if (norm(v)) { sc = norm(String(v)); break; }
-        }
-      }
+      // SC: chỉ đọc ĐÚNG ô tại hàng tên hạng mục (r0), KHÔNG theo merge
+      // (tránh kế thừa SC của hạng mục phía trên qua ô gộp dọc, và tránh vớ chữ "S" lạc ở dưới).
+      const sc = scCol >= 0 ? norm(cellRC(ws, r0, scCol, [])) : '';
       let requirement = name;
       if (spec) requirement += ': ' + spec + (tol ? '(' + tol + ')' : '');
       items.push({ no: items.length + 1, name, spec, tol, requirement, method, freq, sc });
@@ -329,15 +323,10 @@
 
       const method = methodCol >= 0 ? vnText(cellRC(ws, r0, methodCol, merges)) : '';
       const freq = freqCol >= 0 ? String(cellRC(ws, r0, freqCol, merges) || '').replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim() : '';
-      // SC: quét từng ô trong phạm vi hàng của hạng mục, KHÔNG theo merge
-      // (tránh kế thừa SC từ hạng mục phía trên khi ô hiện tại nằm trong vùng merge liên kề).
-      let sc = '';
-      if (scCol >= 0) {
-        for (let r = r0; r <= r1; r++) {
-          const v = cellRC(ws, r, scCol, []);
-          if (norm(v)) { sc = norm(String(v)); break; }
-        }
-      }
+      // SC: chỉ đọc ĐÚNG ô tại hàng tên hạng mục (r0), KHÔNG theo merge.
+      // Không theo merge → tránh kế thừa SC của hạng mục PHÍA TRÊN (ô gộp dọc).
+      // Không quét xuống r1 → tránh vớ phải chữ "S" lạc ở dưới khi hạng mục cuối có r1=maxRow.
+      const sc = scCol >= 0 ? norm(cellRC(ws, r0, scCol, [])) : '';
 
       // Chuỗi yêu cầu: "Tên: spec(tol)"
       let requirement = name;
