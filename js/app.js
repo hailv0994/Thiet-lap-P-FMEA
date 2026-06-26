@@ -90,15 +90,23 @@
   ];
   function negateSpecText(spec) {
     const s = norm(spec);
-    // 1) Câu YÊU CẦU mang ý phủ định ("... không bị vỡ", "... không được X",
-    //    "... không có X") → dạng hỏng là BỎ chữ "không" (điều xấu xảy ra).
-    //    VD "Mối hàn không bị vỡ ..." → "Mối hàn bị vỡ ..."
-    const mKhong = /(^|\s)không(?:\s+được)?(\s+bị|\s+có)?\s+/i.exec(s);
-    if (mKhong) {
-      const keep = (mKhong[2] || '').trim(); // giữ lại "bị"/"có" nếu có (bỏ "không"/"được")
-      const pre = mKhong[1];
-      const rest = s.slice(mKhong.index + mKhong[0].length);
-      return (s.slice(0, mKhong.index) + pre + (keep ? keep + ' ' : '') + rest).replace(/\s+/g, ' ').trim();
+    // 1) Cụm bắt buộc/phủ định ở đầu mệnh đề → đổi sang phủ định tương ứng.
+    //    Ưu tiên cụm DÀI trước. Khớp ở đầu câu hoặc sau 1 dấu cách (sau chủ ngữ).
+    //    • "phải được X" → "không được X"   • "phải có X" → "không có X"
+    //    • "phải X"      → "không X"
+    //    • "không được X"→ "X"  • "không bị X" → "bị X"  • "không có X" → "có X"
+    //    • "không X"     → "X"
+    const PHRASE_FLIP = [
+      [/(^|\s)phải\s+được\s+/i, '$1không được '],
+      [/(^|\s)phải\s+có\s+/i, '$1không có '],
+      [/(^|\s)phải\s+/i, '$1không '],
+      [/(^|\s)không\s+được\s+/i, '$1'],
+      [/(^|\s)không\s+bị\s+/i, '$1bị '],
+      [/(^|\s)không\s+có\s+/i, '$1có '],
+      [/(^|\s)không\s+/i, '$1'],
+    ];
+    for (const [re, rep] of PHRASE_FLIP) {
+      if (re.test(s)) return s.replace(re, rep).replace(/\s+/g, ' ').trim();
     }
     // 2) Có cặp từ trái nghĩa trong từ điển → thay bằng từ phủ định.
     for (const [word, neg] of _NEGATE_PAIRS) {
@@ -108,8 +116,9 @@
       const after = idx + word.length === s.length || s[idx + word.length] === ' ';
       if (before && after) return s.slice(0, idx) + neg + s.slice(idx + word.length);
     }
-    // 3) Fallback: thêm "không đạt".
-    return s + ' không đạt';
+    // 3) Fallback: câu toàn chữ không có từ phủ định → thêm "không" vào ĐẦU câu.
+    //    VD "theo tiêu chuẩn kiểm tra" → "không theo tiêu chuẩn kiểm tra".
+    return 'không ' + s;
   }
 
   // Xác định danh sách dạng hỏng hóc dựa vào spec và tolerance của hạng mục CP
@@ -122,11 +131,10 @@
     if (/^(max|min|[≤≥]|tối\s*đa|tối\s*thiểu|không\s*quá|ít\s*nhất)/i.test(spec)) {
       return [name + specDisplay + ' không đạt'];
     }
-    // Yêu cầu PHỦ ĐỊNH "Không X" / "Không được X" → dạng hỏng là KHẲNG ĐỊNH "có X".
-    //  VD: "Không dò rỉ khí … dưới 490kPa" → "có dò rỉ khí … dưới 490kPa".
-    if (/^không(\s+được)?\s+\S/i.test(spec)) {
-      const flipped = spec.replace(/^không(\s+được)?\s+/i, 'có ');
-      return [(name ? name + ': ' : '') + flipped];
+    // Yêu cầu mang ý PHỦ ĐỊNH / BẮT BUỘC ("không X", "phải X", "... không bị Y") →
+    // dạng hỏng là câu phủ định tương ứng (kể cả khi spec có kèm số, VD "490kPa").
+    if (/(^|\s)(không|phải)(\s|$)/i.test(spec)) {
+      return [(name ? name + ': ' : '') + negateSpecText(spec)];
     }
     // Dung sai 2 phía → 2 dạng hỏng. Nhận diện từ:
     //  - cột dung sai riêng (tol), hoặc spec dạng khoảng "4~5", hoặc
@@ -745,9 +753,39 @@
     scheduleAutosave();
   }
 
+  // Sửa Yêu cầu (cột A) → tái sinh nội dung Dạng hỏng hóc (cột B) theo yêu cầu mới.
+  // CHỈ đổi failureMode; mọi cột khác (Ảnh hưởng/S/Nguyên nhân/Dự phòng/Phát hiện…) giữ nguyên.
+  function syncFailureModeFromReq(pid, rid) {
+    const p = getProc(pid); if (!p) return false;
+    const r = getReq(pid, rid); if (!r) return false;
+    const modes = failureModesFor(parseReqText(r.reqText));
+    // Nhóm tách dạng hỏng (cùng splitId), hoặc chỉ riêng yêu cầu này.
+    const group = r.splitId ? p.reqs.filter((x) => x.splitId === r.splitId) : [r];
+    let changed = false;
+    if (modes.length === group.length) {
+      if (modes.length === 2) {
+        group.forEach((x) => {
+          const nm = /nhỏ hơn tiêu chuẩn/.test(x.failureMode) ? modes[1] : modes[0];
+          if (x.failureMode !== nm) { x.failureMode = nm; changed = true; }
+        });
+      } else if (group[0].failureMode !== modes[0]) {
+        group[0].failureMode = modes[0]; changed = true;
+      }
+    } else if (modes[0] && r.failureMode !== modes[0]) {
+      // Số lượng dạng hỏng đổi (hiếm) → cập nhật dạng hỏng đầu cho yêu cầu hiện tại.
+      r.failureMode = modes[0]; changed = true;
+    }
+    return changed;
+  }
+
   function onChange(e) {
     const el = e.target;
     const field = el.dataset && el.dataset.field;
+    if (field === 'reqText') {
+      const { pid, rid } = dataset(el);
+      if (syncFailureModeFromReq(pid, rid)) { render(); scheduleAutosave(); }
+      return;
+    }
     if (field === 'category') {
       const { pid, rid, cid } = dataset(el);
       const c = getCause(pid, rid, cid);
