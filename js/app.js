@@ -76,13 +76,37 @@
     return s.replace(/\s+/g, ' ').trim();
   }
 
+  // Phủ định câu spec toàn chữ bằng từ điển trái nghĩa; fallback thêm "không đạt".
+  const _NEGATE_PAIRS = [
+    ['đúng vị trí', 'sai vị trí'], ['đúng hướng', 'sai hướng'],
+    ['đúng chủng loại', 'sai chủng loại'], ['đúng', 'sai'],
+    ['đầy đủ', 'không đầy đủ'], ['đủ', 'thiếu'],
+    ['kín', 'hở'], ['sạch', 'bẩn'], ['chính xác', 'không chính xác'],
+    ['rõ ràng', 'không rõ ràng'], ['rõ', 'không rõ'],
+    ['đầy', 'thiếu'], ['cân', 'lệch'], ['thẳng', 'cong'],
+    ['phẳng', 'vênh'], ['chắc', 'lỏng'], ['chặt', 'lỏng'],
+    ['nhẵn', 'nhám'], ['tốt', 'không tốt'], ['đều', 'không đều'],
+    ['khô', 'ướt'], ['liền', 'đứt'], ['nguyên', 'vỡ/thiếu'],
+  ];
+  function negateSpecText(spec) {
+    const s = norm(spec);
+    for (const [word, neg] of _NEGATE_PAIRS) {
+      const idx = s.toLowerCase().indexOf(word.toLowerCase());
+      if (idx < 0) continue;
+      const before = idx === 0 || s[idx - 1] === ' ';
+      const after = idx + word.length === s.length || s[idx + word.length] === ' ';
+      if (before && after) return s.slice(0, idx) + neg + s.slice(idx + word.length);
+    }
+    return s + ' không đạt';
+  }
+
   // Xác định danh sách dạng hỏng hóc dựa vào spec và tolerance của hạng mục CP
   function failureModesFor(item) {
     const name = norm(item.name || '');
     const spec = norm(item.spec || '');
     const tol  = norm(item.tol  || '');
     const specDisplay = spec ? ' ' + spec : '';
-    // Quản lý 1 phía (max/min/≤/≥) → 1 dạng hỏng
+    // Quản lý 1 phía (max/min/≤/≥) → 1 dạng hỏng "không đạt"
     if (/^(max|min|[≤≥]|tối\s*đa|tối\s*thiểu|không\s*quá|ít\s*nhất)/i.test(spec)) {
       return [name + specDisplay + ' không đạt'];
     }
@@ -102,11 +126,13 @@
       const base = name + (nom ? ' ' + nom : '');
       return [base + ' lớn hơn tiêu chuẩn', base + ' nhỏ hơn tiêu chuẩn'];
     }
-    // Không có spec, hoặc spec toàn chữ (không số) → 1 dạng hỏng
-    if (!spec || !/\d/.test(spec)) {
-      return [name + ' không đạt'];
+    // Không có spec → "không đạt"
+    if (!spec) return [name + ' không đạt'];
+    // Spec toàn chữ (không số) → phủ định câu spec
+    if (!/\d/.test(spec)) {
+      return [name + ': ' + negateSpecText(spec)];
     }
-    // Spec là số nhưng không có dung sai → 1 dạng hỏng
+    // Spec là số nhưng không có dung sai → 1 dạng hỏng "không đạt"
     return [name + specDisplay + ' không đạt'];
   }
 
