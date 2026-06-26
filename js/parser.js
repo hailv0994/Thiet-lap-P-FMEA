@@ -12,8 +12,18 @@
   'use strict';
 
   const norm = (s) => (s == null ? '' : String(s)).replace(/\s+/g, ' ').trim();
-  // Lấy dòng đầu tiên (thường là tiếng Việt) của một ô nhiều dòng VN/EN
-  const firstLine = (s) => (s == null ? '' : String(s)).split('\n')[0].trim();
+  // Lấy dòng đầu tiên của ô spec, kèm các dòng tiếp theo nếu là thuần số/ký hiệu
+  // (vd "Min \r\n3.12" → "Min 3.12"). Dừng khi gặp chữ Anh/Nhật.
+  const firstLine = (s) => {
+    if (s == null) return '';
+    const lines = String(s).split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+    if (!lines.length) return '';
+    const out = [lines[0]];
+    for (let i = 1; i < lines.length; i++) {
+      if (/^[0-9\s±+\-./<>~µ℃°˚×]+$/.test(lines[i])) out.push(lines[i]); else break;
+    }
+    return out.join(' ').trim();
+  };
 
   // Ký tự có dấu tiếng Việt — dùng để nhận biết dòng tiếng Việt nối tiếp
   const VN_DIACRITIC = /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ]/i;
