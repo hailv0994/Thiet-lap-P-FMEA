@@ -327,8 +327,8 @@
       // Một số hạng mục có spec trải 2 ô (vd "Ø14.5" ở ô trên và "±0.2" ở ô dưới).
       // Dùng Set để loại trùng (bản dịch Anh/Nhật trùng số với bản tiếng Việt).
       let spec = '';
+      const specParts = [];
       if (specCol >= 0) {
-        const specParts = [];
         for (let r = r0; r <= r1; r++) {
           const v = cellRC(ws, r, specCol, [] /*không truy merge để tránh lặp*/);
           const fv = norm(v) ? fixDiameter(firstLine(v)) : '';
