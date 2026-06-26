@@ -111,10 +111,12 @@
   // Trong CP, ký hiệu đường kính Ø thường được gõ là chữ "F" với font Symbol.
   // Chuyển 'F'/'f' dùng làm ký hiệu đường kính sang "Ø":
   //   (a) đứng trước chữ số, dấu thập phân, hoặc ký hiệu dung sai ±
-  //   (b) là toàn bộ giá trị (chỉ một ký tự F/f)
+  //   (b) đứng ở cuối chuỗi (vd "Max F" → "Max Ø")
+  //   (c) là toàn bộ giá trị (chỉ một ký tự F/f)
   function fixDiameter(s) {
     s = (s == null ? '' : String(s));
     s = s.replace(/(^|[^0-9A-Za-zÀ-ỹ])[Ff](?=\s*[0-9.±])/g, '$1Ø');
+    s = s.replace(/(^|[^0-9A-Za-zÀ-ỹ])[Ff](?=\s*$)/g, '$1Ø');
     if (/^[Ff]$/.test(s.trim())) s = 'Ø';
     return s;
   }
@@ -325,19 +327,30 @@
         spec = specParts.join(' ');
       }
 
-      // tolerance: gom các ô dạng dung sai ở vài cột bên phải spec, trong span
-      let tols = [];
+      // tolerance / giá trị kề spec: gom các ô ở vài cột bên phải spec.
+      // Nếu ô có dấu ±/-/+ → dung sai (ghi vào tol, hiển thị trong ngoặc).
+      // Nếu không có dấu đó (vd "0.1", "Rz12.5") → ghép vào spec để không mất.
+      let tols = [], specExtras = [];
       if (specCol >= 0) {
         for (let r = r0; r <= r1; r++) {
           for (let c = specCol + 1; c <= Math.min(specCol + 5, colMax - 1); c++) {
             const a = XLSX.utils.encode_cell({ r, c });
             const v = ws[a] ? ws[a].v : undefined;
-            if (looksLikeTolerance(v)) tols.push(norm(v));
+            const nv = norm(v);
+            if (!nv) continue;
+            if (looksLikeTolerance(v)) {
+              tols.push(nv);
+            } else {
+              const fv = fixDiameter(nv);
+              if (!specExtras.includes(fv) && !specParts.includes(fv)) specExtras.push(fv);
+            }
           }
         }
       }
       tols = [...new Set(tols)];
       const tol = tols.join('/');
+      // Ghép thêm các giá trị kề không phải dung sai vào cuối spec
+      if (specExtras.length) spec = [spec, ...specExtras].filter(Boolean).join(' ');
 
       const method = methodCol >= 0 ? vnText(cellRC(ws, r0, methodCol, merges)) : '';
       const freq = freqCol >= 0 ? String(cellRC(ws, r0, freqCol, merges) || '').replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim() : '';
