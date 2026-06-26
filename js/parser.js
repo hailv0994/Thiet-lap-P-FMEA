@@ -53,19 +53,21 @@
     return out;
   }
 
-  // Giá trị ô theo (row,col) 0-based, có truy ngược merge để lấy ô gốc
+  // Giá trị ô theo (row,col) 0-based, có truy ngược merge để lấy ô gốc.
+  // Nếu ô dùng font Symbol (cellStyles: true) thì chuyển ký tự đặc biệt sang Unicode.
   function cellRC(ws, row, col, merges) {
     const a = XLSX.utils.encode_cell({ r: row, c: col });
-    if (ws[a] && ws[a].v != null && norm(ws[a].v) !== '') return ws[a].v;
+    if (ws[a] && ws[a].v != null && norm(ws[a].v) !== '') return applySymbolFont(ws[a], ws[a].v);
     if (merges) {
       for (const m of merges) {
         if (row >= m.s.r && row <= m.e.r && col >= m.s.c && col <= m.e.c) {
           const ga = XLSX.utils.encode_cell({ r: m.s.r, c: m.s.c });
-          return ws[ga] ? ws[ga].v : undefined;
+          if (ws[ga]) return applySymbolFont(ws[ga], ws[ga].v);
+          return undefined;
         }
       }
     }
-    return ws[a] ? ws[a].v : undefined;
+    return ws[a] ? applySymbolFont(ws[a], ws[a].v) : undefined;
   }
 
   // Cột kết thúc của vùng merge chứa (row,col); nếu không nằm trong merge nào
@@ -106,13 +108,24 @@
     return !!s && /[+\-±]/.test(s);
   }
 
-  // Trong CP, ký hiệu đường kính Ø thường được gõ là chữ "F" với font Symbol
-  // (Symbol hiển thị "F" thành ký hiệu đường kính). Khi đưa sang P-FMEA (font
-  // Arial) thì "F" lại hiện đúng là chữ F. Chuyển chữ "F"/"f" đứng một mình ngay
-  // trước một con số (cách dùng làm ký hiệu đường kính) thành "Ø".
+  // Trong CP, ký hiệu đường kính Ø thường được gõ là chữ "F" với font Symbol.
+  // Chuyển 'F'/'f' dùng làm ký hiệu đường kính sang "Ø":
+  //   (a) đứng trước chữ số, dấu thập phân, hoặc ký hiệu dung sai ±
+  //   (b) là toàn bộ giá trị (chỉ một ký tự F/f)
   function fixDiameter(s) {
     s = (s == null ? '' : String(s));
-    return s.replace(/(^|[^0-9A-Za-zÀ-ỹ])[Ff](?=\s*[0-9.])/g, '$1Ø');
+    s = s.replace(/(^|[^0-9A-Za-zÀ-ỹ])[Ff](?=\s*[0-9.±])/g, '$1Ø');
+    if (/^[Ff]$/.test(s.trim())) s = 'Ø';
+    return s;
+  }
+
+  // Nếu SheetJS đọc được thông tin font (cellStyles: true), chuyển ký tự
+  // trong ô dùng font Symbol sang Unicode tương ứng ('F' → 'Ø').
+  // Chỉ chuyển 'F' đứng độc lập (không nằm trong từ chữ cái), tránh sai từ.
+  function applySymbolFont(cell, val) {
+    if (!cell || !cell.s || !cell.s.font || typeof val !== 'string') return val;
+    if (!/symbol/i.test(String(cell.s.font.name || ''))) return val;
+    return val.replace(/(^|[^A-Za-zÀ-ỹ])F(?=[^A-Za-zÀ-ỹ]|$)/g, '$1Ø');
   }
 
   // Fallback cho bố cục GL SQS0831: khối "Quản lý đặc tính chất lượng" xếp DỌC
@@ -298,13 +311,18 @@
       const name = fixDiameter(vnText(cellRC(ws, r0, nameCol, merges)));
       if (!name) continue;
 
-      // spec: ô đầu tiên có giá trị trong specCol
+      // spec: gom TẤT CẢ ô có giá trị trong specCol (r0..r1), nối lại.
+      // Một số hạng mục có spec trải 2 ô (vd "Ø14.5" ở ô trên và "±0.2" ở ô dưới).
+      // Dùng Set để loại trùng (bản dịch Anh/Nhật trùng số với bản tiếng Việt).
       let spec = '';
       if (specCol >= 0) {
+        const specParts = [];
         for (let r = r0; r <= r1; r++) {
           const v = cellRC(ws, r, specCol, [] /*không truy merge để tránh lặp*/);
-          if (norm(v)) { spec = fixDiameter(firstLine(v)); break; }
+          const fv = norm(v) ? fixDiameter(firstLine(v)) : '';
+          if (fv && !specParts.includes(fv)) specParts.push(fv);
         }
+        spec = specParts.join(' ');
       }
 
       // tolerance: gom các ô dạng dung sai ở vài cột bên phải spec, trong span

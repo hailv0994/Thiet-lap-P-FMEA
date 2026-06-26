@@ -871,7 +871,7 @@
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        workbook = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
+        workbook = XLSX.read(new Uint8Array(ev.target.result), { type: 'array', cellStyles: true });
       } catch (err) {
         alert('Không đọc được file: ' + err.message); return;
       }
