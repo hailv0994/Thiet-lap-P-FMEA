@@ -1318,61 +1318,36 @@
   }
 
   // ===================== Chuyển model sang dây chuyền khác =====================
-  // Lưu nội dung P-FMEA của model đang mở sang dây chuyền MỚI, xóa ở dây chuyền CŨ.
-  function openXferModal() {
-    readMetaInputs();
-    if (!state.meta.model) { alert('Hãy mở model cần chuyển trước (chọn/gõ tên Model đã lưu).'); return; }
-    if (!state.processes.length) { alert('Chưa có dữ liệu P-FMEA để chuyển.'); return; }
-    const oldKey = projectKey(state.meta);
-    if (!readProjects()[oldKey]) {
-      alert('Model "' + state.meta.model + '" chưa được lưu ở dây chuyền hiện tại.\nHãy bấm Lưu trước khi chuyển dây chuyền.');
-      return;
-    }
-    $('#xferInfo').innerHTML = 'Model <b>' + esc(state.meta.model) + '</b> — đang ở dây chuyền <b>' + esc(state.meta.line || '(trống)') + '</b>';
-    // Gợi ý dây chuyền: từ cây Material + các dây chuyền đã có model (cùng bộ phận/sản phẩm)
-    const set = new Set();
-    const tl = (TREE()[state.meta.dept] && TREE()[state.meta.dept][state.meta.product]) || [];
-    tl.forEach((v) => set.add(v));
-    const map = readProjects();
-    Object.keys(map).forEach((k) => {
-      const m = map[k].meta || {};
-      if (normKey(m.dept) === normKey(state.meta.dept) && normKey(m.product) === normKey(state.meta.product) && m.line) set.add(m.line);
-    });
-    set.delete(state.meta.line);
-    $('#dlXferLine').innerHTML = [...set].sort().map((v) => `<option value="${esc(v)}"></option>`).join('');
-    $('#xferLine').value = '';
-    $('#xferModal').hidden = false;
-    setTimeout(() => $('#xferLine').focus(), 0);
-  }
-  function closeXferModal() { $('#xferModal').hidden = true; }
-  function doXferLine() {
-    readMetaInputs();
-    const newLine = $('#xferLine').value.trim();
-    if (!newLine) { alert('Hãy chọn hoặc nhập dây chuyền đích.'); $('#xferLine').focus(); return; }
-    if (normKey(newLine) === normKey(state.meta.line)) { alert('Dây chuyền đích trùng dây chuyền hiện tại.'); return; }
-    const oldKey = projectKey(state.meta);
+  // Gọi khi đang mở 1 model ĐÃ LƯU và người dùng đổi ô Dây chuyền sang dây chuyền MỚI.
+  // Hiện hộp xác nhận: OK = lưu sang dây chuyền mới + xóa ở dây chuyền cũ; Hủy = giữ nguyên.
+  // Trả về true nếu đã xử lý xong (đã chuyển hoặc đã hủy/hoàn tác).
+  function transferLineTo(newLine, oldKey) {
+    const oldLine = state.meta.line || '';
+    const revert = () => { $('#mLine').value = oldLine; };
+    if (!newLine) { revert(); return true; }
     const map = readProjects();
     const proj = map[oldKey];
-    if (!proj) { alert('Không tìm thấy model đã lưu để chuyển.'); return; }
+    if (!proj) { revert(); return true; }
     const newMeta = Object.assign({}, state.meta, { line: newLine });
     const newKey = projectKey(newMeta);
-    if (map[newKey]) {
-      if (!confirm('Dây chuyền "' + newLine + '" ĐÃ CÓ model "' + state.meta.model + '".\nGhi đè model đó bằng nội dung hiện tại?')) return;
-      pushHistory(newKey, map[newKey]);
-    }
+    const willOverwrite = map[newKey] && newKey !== oldKey;
+    let msg = 'Chuyển model "' + state.meta.model + '" sang dây chuyền "' + newLine + '"?\n\n'
+      + 'Nội dung P-FMEA sẽ được LƯU ở dây chuyền mới và XÓA khỏi dây chuyền cũ "' + oldLine + '".';
+    if (willOverwrite) msg += '\n\n⚠️ Dây chuyền "' + newLine + '" ĐÃ CÓ model "' + state.meta.model + '" — sẽ bị GHI ĐÈ.';
+    if (!confirm(msg)) { revert(); return true; }   // Hủy → không chuyển
+    if (willOverwrite) pushHistory(newKey, map[newKey]);
     // Lưu ở dây chuyền mới (dùng nội dung hiện tại), xóa ở dây chuyền cũ
     map[newKey] = { meta: newMeta, processes: state.processes, savedAt: new Date().toISOString() };
     delete map[oldKey];
     writeProjects(map);
     cloudPushProject(newKey, map[newKey]);
     cloudDeleteProject(oldKey);
-    // Cập nhật ngữ cảnh hiện tại sang dây chuyền mới
     state.meta.line = newLine;
     _openedKey = newKey;
     writeMetaInputs();
     refreshProjectUI();
-    closeXferModal();
     flash('Đã chuyển model "' + state.meta.model + '" sang dây chuyền: ' + newLine + (sb ? ' (đã đồng bộ chung)' : ''));
+    return true;
   }
 
   // ===================== Thư viện model đã lưu =====================
@@ -2200,12 +2175,6 @@
     $('#histModalClose').addEventListener('click', closeHistoryModal);
     $('#histModalCancel').addEventListener('click', closeHistoryModal);
     $('#histModal').addEventListener('click', (e) => { if (e.target.id === 'histModal') closeHistoryModal(); });
-    $('#btnXferLine').addEventListener('click', openXferModal);
-    $('#xferModalClose').addEventListener('click', closeXferModal);
-    $('#xferCancel').addEventListener('click', closeXferModal);
-    $('#xferConfirm').addEventListener('click', doXferLine);
-    $('#xferModal').addEventListener('click', (e) => { if (e.target.id === 'xferModal') closeXferModal(); });
-    $('#xferLine').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doXferLine(); } });
     $('#btnLibrary').addEventListener('click', openLibraryModal);
     $('#libModalClose').addEventListener('click', closeLibraryModal);
     $('#libModalCancel').addEventListener('click', closeLibraryModal);
@@ -2258,8 +2227,18 @@
       onMetaChange();
     });
     $('#mLine').addEventListener('change', () => {
+      const newLine = $('#mLine').value.trim();
+      const oldLine = state.meta.line || '';
+      if (normKey(newLine) === normKey(oldLine)) return; // không đổi
+      // Đang mở 1 model ĐÃ LƯU có dữ liệu → đổi dây chuyền = CHUYỂN (hỏi xác nhận)
+      const oldKey = state.meta.model ? projectKey(state.meta) : '';
+      if (oldKey && state.processes.length && readProjects()[oldKey]) {
+        transferLineTo(newLine, oldKey);
+        return;
+      }
+      // Không có model đã lưu đang mở → chuyển ngữ cảnh như cũ
       if (!confirmContext()) {
-        $('#mLine').value = state.meta.line || '';
+        $('#mLine').value = oldLine;
         return;
       }
       if (state.processes.length) { state.processes = []; render(); }
