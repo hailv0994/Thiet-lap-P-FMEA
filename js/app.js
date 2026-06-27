@@ -867,7 +867,15 @@
       moveProc(pid, +1);
     } else if (action === 'fill-incoming') {
       const proc = getProc(pid);
-      if (proc) { applyIncomingPreset(proc); save(); render(); }
+      if (proc) {
+        applyIncomingPreset(proc); scheduleAutosave(); render();
+        // Cuộn đến proc vừa nhập và thông báo
+        setTimeout(() => {
+          const el = document.querySelector(`[data-proc="${pid}"]`);
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 50);
+        flash('✅ Đã nhập dữ liệu mẫu công đoạn "' + proc.name + '" (Ảnh hưởng → Biện pháp đề xuất)');
+      }
     }
   }
 
