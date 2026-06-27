@@ -889,6 +889,40 @@
     reader.readAsArrayBuffer(file);
   }
 
+  // Dữ liệu FMEA mẫu cho công đoạn "Kiểm tra phôi đầu vào" — chung cho mọi sản phẩm PRO2.
+  // Nguồn tham chiếu: bản FMEA Damper case comp HGJR.
+  const PRESET_INCOMING = {
+    procFunc: 'Chuẩn bị phôi sản xuất',
+    severity: 2,
+    effectScope: 'process',
+    effectAnalysis: 'Phải thay đổi KHSX',
+    effectStdText: 'Sự bất tiện nhỏ cho công đoạn, thao tác hoặc nhân viên thao tác',
+    cause: {
+      category: 'Man',
+      cause: 'Nhân viên nhập sai số lượng, chủng loại',
+      occurrence: '2',
+      prevention: 'Đào tạo hướng dẫn nhân viên',
+      detectCause: '-Thiết kế đồ gá để nếu sai chủng loại sẽ không gá đặt được vào máy\n-Đối chiếu số lượng nhập và số lượng sản phẩm sau khi sản xuất xong',
+      detection: '7',
+      action: 'Không cần',
+    },
+  };
+
+  function applyIncomingPreset(proc) {
+    const p = PRESET_INCOMING;
+    proc.func = p.procFunc;
+    proc.reqs.forEach((req) => {
+      req.severity = p.severity;
+      req.effectScope = p.effectScope;
+      req.effectAnalysis = p.effectAnalysis;
+      req.effectStdText = p.effectStdText;
+      const detect = 'Kiểm tra ' + req.reqText.split(':')[0].trim() + ' bằng Đếm, mắt theo tần suất 100% (PRO2)';
+      req.detectOwn = detect;
+      req.detectFailureAuto = detect;
+      req.causes = [{ ...newCause(), ...p.cause, id: uid('c') }];
+    });
+  }
+
   // Đọc TẤT CẢ sheet -> danh sách công đoạn mới (fresh từ CP)
   // Các sheet có cùng "Tên công đoạn" được gộp thành 1 công đoạn,
   // số thứ tự hạng mục tiếp nối liên tục qua các sheet.
@@ -909,13 +943,15 @@
     const procs = [];
     groups.forEach(({ name, items }) => {
       items.forEach((item, idx) => { item.no = idx + 1; });
-      procs.push({
+      const proc = {
         id: uid('p'),
         no: String(procs.length + 1),
         name,
         func: '',
         reqs: items.flatMap(reqsFromItem),
-      });
+      };
+      if (/kiểm tra phôi đầu vào/i.test(name)) applyIncomingPreset(proc);
+      procs.push(proc);
     });
     return { procs, skipped };
   }
