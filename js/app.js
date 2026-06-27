@@ -103,6 +103,9 @@
       [/(^|\s)không\s+được\s+/i, '$1'],
       [/(^|\s)không\s+bị\s+/i, '$1bị '],
       [/(^|\s)không\s+có\s+/i, '$1có '],
+      // "không [danh từ]" → "có [danh từ]": từ sau "không" không phải tính từ/modal
+      [/(^|\s)không\s+(?!(được|bị|có|thể|nên|cần|phải|theo|đúng|đạt|rõ|đủ|đều|nhẵn|sạch|kín|tốt|chính|đơn|còn|thuộc))/i, '$1có '],
+      // "không [tính từ/động từ]" → "[tính từ/động từ]"
       [/(^|\s)không\s+/i, '$1'],
     ];
     for (const [re, rep] of PHRASE_FLIP) {
