@@ -12,6 +12,8 @@
   'use strict';
 
   const norm = (s) => (s == null ? '' : String(s)).replace(/\s+/g, ' ').trim();
+  // Dung sai nhiều dòng (vd "+0.4\r\n0") → "+0.4/0" (dùng / thay space để rõ 2 giới hạn)
+  const normTol = (s) => (s == null ? '' : String(s)).split(/\r?\n/).map(p => p.replace(/\s+/g, ' ').trim()).filter(Boolean).join('/');
   // Lấy dòng đầu tiên của ô spec, kèm các dòng tiếp theo nếu là thuần số/ký hiệu
   // (vd "Min \r\n3.12" → "Min 3.12"). Dừng khi gặp chữ Anh/Nhật.
   const firstLine = (s) => {
@@ -192,13 +194,13 @@
       const specParts = [], tolParts = [];
       if (specCol >= 0) {
         for (let c = specCol; c < specEnd; c++) {
-          let val = '';
+          let val = '', rawVal = '';
           for (let r = r0; r <= r1; r++) {
             const a = XLSX.utils.encode_cell({ r, c });
-            if (ws[a] && norm(ws[a].v)) { val = norm(ws[a].v); break; }
+            if (ws[a] && norm(ws[a].v)) { rawVal = String(ws[a].v); val = norm(rawVal); break; }
           }
           if (!val || /^(R\/L|L\/R|Max\.?|Min\.?)$/i.test(val)) continue;
-          if (looksLikeTolerance(val)) tolParts.push(val); else specParts.push(fixDiameter(val));
+          if (looksLikeTolerance(val)) tolParts.push(normTol(rawVal)); else specParts.push(fixDiameter(val));
         }
       }
       const spec = specParts.join(' ');
@@ -209,7 +211,7 @@
       // (tránh kế thừa SC của hạng mục phía trên qua ô gộp dọc, và tránh vớ chữ "S" lạc ở dưới).
       const sc = scCol >= 0 ? norm(cellRC(ws, r0, scCol, [])) : '';
       let requirement = name;
-      if (spec) requirement += ': ' + spec + (tol ? (tol.startsWith('±') ? tol : '(' + tol + ')') : '');
+      if (spec) requirement += ': ' + spec + (tol ? (tol.startsWith('±') ? tol : ' (' + tol + ')') : '');
       items.push({ no: items.length + 1, name, spec, tol, requirement, method, freq, sc });
     }
     return { sheetName, processName, items };
@@ -363,7 +365,7 @@
             const nv = norm(v);
             if (!nv) continue;
             if (looksLikeTolerance(v)) {
-              tols.push(nv);
+              tols.push(normTol(v));
             } else {
               const fv = fixDiameter(nv);
               if (!specExtras.includes(fv) && !specParts.includes(fv)) specExtras.push(fv);
@@ -385,7 +387,7 @@
 
       // Chuỗi yêu cầu: "Tên: spec(tol)" — ± không đóng ngoặc
       let requirement = name;
-      if (spec) requirement += ': ' + spec + (tol ? (tol.startsWith('±') ? tol : '(' + tol + ')') : '');
+      if (spec) requirement += ': ' + spec + (tol ? (tol.startsWith('±') ? tol : ' (' + tol + ')') : '');
 
       items.push({
         no: items.length + 1,
