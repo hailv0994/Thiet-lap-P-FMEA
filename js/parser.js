@@ -209,7 +209,7 @@
       // (tránh kế thừa SC của hạng mục phía trên qua ô gộp dọc, và tránh vớ chữ "S" lạc ở dưới).
       const sc = scCol >= 0 ? norm(cellRC(ws, r0, scCol, [])) : '';
       let requirement = name;
-      if (spec) requirement += ': ' + spec + (tol ? '(' + tol + ')' : '');
+      if (spec) requirement += ': ' + spec + (tol ? (tol.startsWith('±') ? tol : '(' + tol + ')') : '');
       items.push({ no: items.length + 1, name, spec, tol, requirement, method, freq, sc });
     }
     return { sheetName, processName, items };
@@ -292,19 +292,33 @@
       //       - khác tên (tác giả quên đánh số)  -> vẫn là hạng mục mới.
       const seenNo = new Set();
       let curName = null;
+      let curNoMergeEnd = -1; // hàng cuối của merge STT hiện tại (chỉ lưu nếu merge ≤2 hàng)
       for (let r = headerRow + 1; r <= maxRow; r++) {
         const nv = ws[XLSX.utils.encode_cell({ r, c: nameCol })];
         const txt = nv ? norm(nv.v) : '';
         if (!txt || txt === 'Control Item') continue;
         const nameKey = txt.toLowerCase();
-        const noV = ws[XLSX.utils.encode_cell({ r, c: noCol })];
-        const noTxt = noV ? norm(noV.v) : '';
+        const noRaw = ws[XLSX.utils.encode_cell({ r, c: noCol })];
+        const noTxt = noRaw ? norm(noRaw.v) : '';
         if (noTxt && !seenNo.has(noTxt)) {
           seenNo.add(noTxt); starts.push(r); curName = nameKey; // số mới
-        } else if (nameKey !== curName) {
-          starts.push(r); curName = nameKey;                    // khác tên -> hạng mục mới
+          curNoMergeEnd = r; // mặc định: không có sub-row
+          for (const m of merges) {
+            if (r >= m.s.r && r <= m.e.r && noCol >= m.s.c && noCol <= m.e.c) {
+              if (m.e.r - m.s.r <= 1) curNoMergeEnd = m.e.r; // chỉ áp dụng merge ≤2 hàng
+              break;
+            }
+          }
+        } else if (noTxt && nameKey !== curName) {
+          starts.push(r); curName = nameKey; // STT đã thấy nhưng tên khác -> hạng mục mới (vd STT lặp)
+        } else if (!noTxt && nameKey !== curName) {
+          if (r <= curNoMergeEnd) {
+            curName = nameKey; // sub-row trong merge ≤2 hàng → cùng hạng mục (vd GC1 item 8)
+          } else {
+            starts.push(r); curName = nameKey; // tên mới, ngoài merge nhỏ → hạng mục mới
+          }
         }
-        // còn lại: số trống/lặp + cùng tên -> nối tiếp, bỏ qua
+        // còn lại: STT trống + cùng tên -> nối tiếp, bỏ qua
       }
     } else {
       // Không có cột số: dựa vào ô tên không rỗng (như cũ).
@@ -369,9 +383,9 @@
       // Không quét xuống r1 → tránh vớ phải chữ "S" lạc ở dưới khi hạng mục cuối có r1=maxRow.
       const sc = scCol >= 0 ? norm(cellRC(ws, r0, scCol, [])) : '';
 
-      // Chuỗi yêu cầu: "Tên: spec(tol)"
+      // Chuỗi yêu cầu: "Tên: spec(tol)" — ± không đóng ngoặc
       let requirement = name;
-      if (spec) requirement += ': ' + spec + (tol ? '(' + tol + ')' : '');
+      if (spec) requirement += ': ' + spec + (tol ? (tol.startsWith('±') ? tol : '(' + tol + ')') : '');
 
       items.push({
         no: items.length + 1,
@@ -382,13 +396,46 @@
     return { sheetName, processName, items };
   }
 
+  // Tách items của 1 công đoạn gộp (vd "Mài thô - Mài trung - Mài tinh") thành các công đoạn riêng.
+  // Phát hiện qua từ khóa trong tên hạng mục: thô/coarse, trung/medium, tinh/fine (không phân biệt hoa thường).
+  // Trả về mảng {processName, items} hoặc [{processName, items}] nếu chỉ 1 giai đoạn.
+  function splitGrindingStages(processName, items) {
+    const STAGES = [
+      { key: 'thô',   pat: /thô|coarse/i,  label: 'Mài thô'   },
+      { key: 'trung', pat: /trung|medium/i, label: 'Mài trung' },
+      { key: 'tinh',  pat: /tinh|fine/i,    label: 'Mài tinh'  },
+    ];
+    // Chỉ tách khi processName chứa cả 3 giai đoạn (hoặc items có hạng mục của nhiều giai đoạn)
+    const hasMulti = STAGES.filter((s) => items.some((it) => s.pat.test(it.name))).length > 1;
+    if (!hasMulti) return [{ processName, items }];
+    return STAGES.map((s) => ({
+      processName: s.label,
+      sheetBased: false,
+      items: items.filter((it) => s.pat.test(it.name)),
+    })).filter((p) => p.items.length > 0);
+  }
+
   window.CPParser = {
     listSheets(wb) {
+      const hiddenSet = new Set();
+      (wb.Workbook?.Sheets || []).forEach((s, i) => { if (s.Hidden) hiddenSet.add(wb.SheetNames[i]); });
       return wb.SheetNames.filter((n) => {
+        if (hiddenSet.has(n)) return false;
         const ws = wb.Sheets[n];
         return ws && ws['!ref'] && ws['!ref'] !== 'A1';
       });
     },
     parseSheet,
+    // Phân tích toàn bộ CP: lọc sheet ẩn, parse từng sheet, tách giai đoạn mài.
+    parseCP(wb) {
+      const results = [];
+      for (const sn of this.listSheets(wb)) {
+        const r = parseSheet(wb, sn);
+        if (!r.items.length) continue;
+        const split = splitGrindingStages(r.processName, r.items);
+        split.forEach((p) => results.push({ sheetName: sn, processName: p.processName, items: p.items }));
+      }
+      return results;
+    },
   };
 })();

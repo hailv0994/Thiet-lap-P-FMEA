@@ -876,7 +876,8 @@
         alert('Không đọc được file: ' + err.message); return;
       }
       const sheets = window.CPParser.listSheets(workbook);
-      $('#sheetInfo').textContent = `Đã đọc ${sheets.length} sheet — bấm để nạp tất cả công đoạn.`;
+      const cpCount = window.CPParser.parseCP(workbook).length;
+      $('#sheetInfo').textContent = `Đã đọc ${sheets.length} sheet (${cpCount} công đoạn) — bấm để nạp tất cả.`;
       $('#sheetGroup').hidden = false;
       $('#btnClear').hidden = false;
       // Nút "Cập nhật từ CP" chỉ hiện khi đã có dữ liệu P-FMEA (tức là đang cập nhật chứ không nạp mới)
@@ -889,23 +890,21 @@
   // Các sheet có cùng "Tên công đoạn" được gộp thành 1 công đoạn,
   // số thứ tự hạng mục tiếp nối liên tục qua các sheet.
   function parseAllProcs() {
-    const sheets = window.CPParser.listSheets(workbook);
-    // Dùng Map để giữ thứ tự sheet; key = tên công đoạn đã chuẩn hóa
-    const groups = new Map(); // normKey → { name: displayName, items: [] }
+    let cpResults;
     const skipped = [];
-    sheets.forEach((sheet) => {
-      let res;
-      try { res = window.CPParser.parseSheet(workbook, sheet); }
-      catch (err) { skipped.push(sheet); return; }
-      if (res.error || !res.items.length) { skipped.push(sheet); return; }
-      const displayName = res.processName || sheet;
+    try { cpResults = window.CPParser.parseCP(workbook); }
+    catch (err) { return { procs: [], skipped: ['(lỗi đọc CP: ' + err.message + ')'] }; }
+    // Gộp các sheet cùng tên công đoạn (giữ thứ tự xuất hiện đầu tiên)
+    const groups = new Map(); // normKey → { name, items[] }
+    cpResults.forEach(({ sheetName, processName, items }) => {
+      if (!items || !items.length) { skipped.push(sheetName); return; }
+      const displayName = processName || sheetName;
       const key = normKey(displayName);
       if (!groups.has(key)) groups.set(key, { name: displayName, items: [] });
-      groups.get(key).items.push(...res.items);
+      groups.get(key).items.push(...items);
     });
     const procs = [];
     groups.forEach(({ name, items }) => {
-      // Đánh số thứ tự liên tục qua tất cả sheet của cùng công đoạn
       items.forEach((item, idx) => { item.no = idx + 1; });
       procs.push({
         id: uid('p'),
