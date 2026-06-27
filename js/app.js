@@ -606,6 +606,7 @@
     empty.hidden = true;
     $('#fmea').style.display = '';
     $('#btnExport').disabled = false;
+    $('#btnFillIncoming').hidden = !state.processes.some((p) => /kiểm tra phôi đầu vào/i.test(p.name));
 
     const rows = [];
     for (const p of state.processes) {
@@ -1200,6 +1201,14 @@
     [arr[i], arr[j]] = [arr[j], arr[i]];
     arr.forEach((p, k) => { if (/^\d+$/.test((p.no || '').trim()) || !p.no) p.no = String(k + 1); });
     render();
+  }
+
+  function onFillIncoming() {
+    const proc = state.processes.find((p) => /kiểm tra phôi đầu vào/i.test(p.name));
+    if (!proc) { alert('Không tìm thấy công đoạn "Kiểm tra phôi đầu vào" trong P-FMEA hiện tại.'); return; }
+    applyIncomingPreset(proc);
+    save(); render();
+    alert('Đã nhập mẫu dữ liệu FMEA cho công đoạn "' + proc.name + '".');
   }
 
   function onClear() {
@@ -2285,6 +2294,7 @@
     $('#fileCP').addEventListener('change', onFile);
     $('#btnLoad').addEventListener('click', onLoadProc);
     $('#btnSync').addEventListener('click', onSyncFromCP);
+    $('#btnFillIncoming').addEventListener('click', onFillIncoming);
     $('#btnClear').addEventListener('click', onClear);
     $('#btnExport').addEventListener('click', onExportClick);
     $('#btnSave').addEventListener('click', onSave);
