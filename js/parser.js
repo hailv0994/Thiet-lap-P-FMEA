@@ -348,7 +348,7 @@
       if (specCol >= 0) {
         for (let r = r0; r <= r1; r++) {
           const v = cellRC(ws, r, specCol, [] /*không truy merge để tránh lặp*/);
-          const fv = norm(v) ? fixDiameter(firstLine(v)) : '';
+          const fv = norm(v) ? fixDiameter(vnText(v)) : '';
           if (fv && !specParts.includes(fv)) specParts.push(fv);
         }
         spec = specParts.join(' ');
