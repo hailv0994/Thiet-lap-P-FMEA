@@ -34,7 +34,8 @@
   // tiếng Việt (có dấu) liền sau; dừng khi gặp dòng tiếng Anh/Nhật (không dấu VN).
   const vnText = (s) => {
     if (s == null) return '';
-    const parts = String(s).split('\n').map((x) => x.trim()).filter(Boolean);
+    // Split theo \n hoặc " / " (SheetJS browser đôi khi dùng " / " thay \r\n cho Alt+Enter)
+    const parts = String(s).split(/\r?\n|\s+\/\s+/).map((x) => x.trim()).filter(Boolean);
     if (!parts.length) return '';
     const out = [parts[0]];
     for (let i = 1; i < parts.length; i++) {
