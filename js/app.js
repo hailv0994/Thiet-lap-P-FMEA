@@ -493,11 +493,13 @@
         <button class="mini-btn danger" data-action="del-req" title="Xóa yêu cầu này">✕</button>
       </div>`;
     }).join('');
+    const isIncoming = /kiểm tra phôi đầu vào/i.test(p.name);
     return `<div class="proc-cell" data-proc="${p.id}">
         <div class="proc-head">
           <span class="proc-head-left">
             <input data-field="no" class="inp-no" style="width:23px" value="${esc(p.no)}" placeholder="STT" />.
             <input data-field="name" class="inp-pname" value="${esc(p.name)}" placeholder="Tên công đoạn" />
+            ${isIncoming ? `<button class="mini-btn" data-action="fill-incoming" data-proc="${p.id}" title="Tự động nhập dữ liệu FMEA mẫu PRO2 (Ảnh hưởng → Biện pháp đề xuất)">🔄</button>` : ''}
           </span>
           <span class="proc-move">
             <button class="mini-btn" data-action="move-up" title="Lên trên">▲</button>
@@ -606,7 +608,6 @@
     empty.hidden = true;
     $('#fmea').style.display = '';
     $('#btnExport').disabled = false;
-    $('#btnFillIncoming').hidden = !state.processes.some((p) => /kiểm tra phôi đầu vào/i.test(p.name));
 
     const rows = [];
     for (const p of state.processes) {
@@ -864,6 +865,9 @@
       moveProc(pid, -1);
     } else if (action === 'move-down') {
       moveProc(pid, +1);
+    } else if (action === 'fill-incoming') {
+      const proc = getProc(pid);
+      if (proc) { applyIncomingPreset(proc); save(); render(); }
     }
   }
 
@@ -909,17 +913,16 @@
     },
   };
 
+  // Chỉ điền từ cột Ảnh hưởng → Biện pháp đề xuất. Không đụng reqText, failureMode, func.
   function applyIncomingPreset(proc) {
     const p = PRESET_INCOMING;
-    proc.func = p.procFunc;
     proc.reqs.forEach((req) => {
       req.severity = p.severity;
       req.effectScope = p.effectScope;
       req.effectAnalysis = p.effectAnalysis;
       req.effectStdText = p.effectStdText;
-      const detect = 'Kiểm tra ' + req.reqText.split(':')[0].trim() + ' bằng Đếm, mắt theo tần suất 100% (PRO2)';
-      req.detectOwn = detect;
-      req.detectFailureAuto = detect;
+      const itemName = req.reqText.split(':')[0].trim();
+      req.detectOwn = 'Kiểm tra ' + itemName + ' bằng Đếm, mắt theo tần suất 100% (PRO2)';
       req.causes = [{ ...newCause(), ...p.cause, id: uid('c') }];
     });
   }
@@ -1201,14 +1204,6 @@
     [arr[i], arr[j]] = [arr[j], arr[i]];
     arr.forEach((p, k) => { if (/^\d+$/.test((p.no || '').trim()) || !p.no) p.no = String(k + 1); });
     render();
-  }
-
-  function onFillIncoming() {
-    const proc = state.processes.find((p) => /kiểm tra phôi đầu vào/i.test(p.name));
-    if (!proc) { alert('Không tìm thấy công đoạn "Kiểm tra phôi đầu vào" trong P-FMEA hiện tại.'); return; }
-    applyIncomingPreset(proc);
-    save(); render();
-    alert('Đã nhập mẫu dữ liệu FMEA cho công đoạn "' + proc.name + '".');
   }
 
   function onClear() {
@@ -2294,7 +2289,6 @@
     $('#fileCP').addEventListener('change', onFile);
     $('#btnLoad').addEventListener('click', onLoadProc);
     $('#btnSync').addEventListener('click', onSyncFromCP);
-    $('#btnFillIncoming').addEventListener('click', onFillIncoming);
     $('#btnClear').addEventListener('click', onClear);
     $('#btnExport').addEventListener('click', onExportClick);
     $('#btnSave').addEventListener('click', onSave);
