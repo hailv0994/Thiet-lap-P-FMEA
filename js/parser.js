@@ -200,7 +200,7 @@
             if (ws[a] && norm(ws[a].v)) { rawVal = String(ws[a].v); val = norm(rawVal); break; }
           }
           if (!val || /^(R\/L|L\/R|Max\.?|Min\.?)$/i.test(val)) continue;
-          if (looksLikeTolerance(val)) tolParts.push(normTol(rawVal)); else specParts.push(fixDiameter(val));
+          if (looksLikeTolerance(val)) tolParts.push(normTol(rawVal)); else specParts.push(fixDiameter(vnText(rawVal)));
         }
       }
       const spec = specParts.join(' ');
